@@ -1,0 +1,6 @@
+{
+  "name": "Parallel Eats",
+  "description": "QR + WhatsApp hostel restaurant and vendor-supply ordering: Name + Block B1/G1 gated cart, staff Block-batch queue, offline cash/UPI/card tick.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
