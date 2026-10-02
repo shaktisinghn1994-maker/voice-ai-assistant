@@ -1,0 +1,13 @@
+# voice-ai-assistant — Cloudflare Worker (API) + static assets (Vite dist).
+# Git-connected: dashboard runs `npm run build`, then deploys this Worker.
+# Local Express server (server.ts) is dev-only; production API logic is shared
+# with Pages Functions via functions/_lib/api.ts.
+
+name = "voice-ai-assistant"
+main = "worker/index.ts"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"

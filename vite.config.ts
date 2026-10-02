@@ -59,7 +59,7 @@ export default defineConfig(() => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
-      include: ['src/**/*.test.{ts,tsx}', 'server.test.ts', 'functions/**/*.test.ts'],
+      include: ['src/**/*.test.{ts,tsx}', 'server.test.ts', 'functions/**/*.test.ts', 'worker/**/*.test.ts'],
       css: false,
       testTimeout: 15000,
     },
