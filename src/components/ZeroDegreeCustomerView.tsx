@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { HOSTEL_BLOCKS, ZERO_DEGREE_MENU, ZERO_DEGREE_OUTLET } from '../data/zeroDegreeData';
 import { QROrder } from '../types';
 import { findProfileById, saveProfile } from '../utils/savedProfiles';
@@ -11,6 +11,31 @@ interface CartLine {
   qty: number;
 }
 
+const CATEGORY_ICONS: { match: string; icon: string }[] = [
+  { match: 'PIZZA', icon: '🍕' },
+  { match: 'COFFEE', icon: '☕' },
+  { match: 'FRIES', icon: '🍟' },
+  { match: 'SHAKE', icon: '🥤' },
+  { match: 'MOCKTAIL', icon: '🍹' },
+  { match: 'BURGER', icon: '🍔' },
+  { match: 'WRAP', icon: '🌯' },
+  { match: 'SANDWICH', icon: '🥪' },
+  { match: 'CHINESE', icon: '🥟' },
+  { match: 'MUNCHIES', icon: '🍗' },
+  { match: 'WINGS', icon: '🍗' },
+  { match: 'KEBAB', icon: '🍢' },
+  { match: 'DESSERT', icon: '🍰' },
+  { match: 'PASTA', icon: '🍝' },
+  { match: 'BREAKFAST', icon: '🍳' },
+  { match: 'BEVERAGE', icon: '🥤' },
+  { match: 'ICE TEA', icon: '🧋' },
+];
+
+function categoryIcon(title: string): string {
+  const upper = title.toUpperCase();
+  return CATEGORY_ICONS.find((c) => upper.includes(c.match))?.icon ?? '🍽️';
+}
+
 export const ZeroDegreeCustomerView: React.FC<{
   onOrderPlaced: (summary: string, orderObj?: QROrder) => void;
   onSwitchToStaff?: () => void;
@@ -18,6 +43,8 @@ export const ZeroDegreeCustomerView: React.FC<{
   const [isOpen, setIsOpen] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [variantSel, setVariantSel] = useState<Record<string, string>>({});
+  const [activeCat, setActiveCat] = useState<string>('all');
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [collegeId, setCollegeId] = useState('');
   const [name, setName] = useState('');
   const [block, setBlock] = useState('');
@@ -55,6 +82,15 @@ export const ZeroDegreeCustomerView: React.FC<{
   });
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
   const canOrder = isOpen && lines.length > 0 && name.trim().length >= 2 && block !== '';
+
+  const catCount = (title: string): number =>
+    ZERO_DEGREE_MENU.find((c) => c.title === title)?.items.length ?? 0;
+  const visibleCats = activeCat === 'all' ? ZERO_DEGREE_MENU : ZERO_DEGREE_MENU.filter((c) => c.title === activeCat);
+
+  const pickCat = (title: string) => {
+    setActiveCat(title);
+    menuRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
 
   // Auto-fill when College ID matches a saved profile
   const lookupId = useCallback((id: string) => {
@@ -204,9 +240,37 @@ export const ZeroDegreeCustomerView: React.FC<{
           )}
         </div>
 
+        {/* Category icons - tap to open that menu section */}
+        <div ref={menuRef} className="mt-4 sm:mt-6 scroll-mt-24">
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Menu categories">
+            <button
+              onClick={() => pickCat('all')}
+              aria-pressed={activeCat === 'all'}
+              className={`shrink-0 flex flex-col items-center gap-0.5 w-[76px] py-2.5 rounded-2xl border cursor-pointer active:scale-95 transition-all min-h-[76px] justify-center ${activeCat === 'all' ? 'bg-amber-500 border-amber-500 text-slate-950' : 'zd-surface border-[#2a2a2e] text-slate-200'}`}
+            >
+              <span className="text-2xl leading-none" aria-hidden="true">📋</span>
+              <span className="text-[11px] font-bold">All</span>
+              <span className={`text-[10px] font-mono ${activeCat === 'all' ? 'text-slate-800' : 'text-slate-500'}`}>{ZERO_DEGREE_MENU.reduce((s, c) => s + c.items.length, 0)} items</span>
+            </button>
+            {ZERO_DEGREE_MENU.map((cat) => (
+              <button
+                key={cat.title}
+                onClick={() => pickCat(cat.title)}
+                aria-pressed={activeCat === cat.title}
+                aria-label={`Show ${cat.title}, ${catCount(cat.title)} items`}
+                className={`shrink-0 flex flex-col items-center gap-0.5 w-[76px] py-2.5 rounded-2xl border cursor-pointer active:scale-95 transition-all min-h-[76px] justify-center ${activeCat === cat.title ? 'bg-amber-500 border-amber-500 text-slate-950' : 'zd-surface border-[#2a2a2e] text-slate-200'}`}
+              >
+                <span className="text-2xl leading-none" aria-hidden="true">{categoryIcon(cat.title)}</span>
+                <span className="text-[11px] font-bold px-1 truncate max-w-full">{cat.title.split('-')[0].trim().split(' ').slice(0, 2).join(' ')}</span>
+                <span className={`text-[10px] font-mono ${activeCat === cat.title ? 'text-slate-800' : 'text-slate-500'}`}>{catCount(cat.title)} items</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Menu */}
-        <div className="mt-4 sm:mt-6 space-y-4 sm:space-y-6">
-          {ZERO_DEGREE_MENU.map((cat) => (
+        <div className="mt-3 sm:mt-4 space-y-4 sm:space-y-6">
+          {visibleCats.map((cat) => (
             <section key={cat.title} className="rounded-2xl overflow-hidden border border-[#2a2a2e]" style={{ background: '#ffffff' }}>
               <div className="px-4 py-2.5 text-sm font-bold text-white" style={{ background: cat.color }}>{cat.title}</div>
               <div className="divide-y divide-slate-100">

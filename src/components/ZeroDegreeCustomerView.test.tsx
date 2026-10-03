@@ -19,6 +19,23 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
     expect(screen.getByPlaceholderText(/e\.g\. Aarav/i)).toHaveValue('Aarav');
   });
 
+  it('shows category icons with item counts', () => {
+    render(<ZeroDegreeCustomerView onOrderPlaced={vi.fn()} />);
+    expect(screen.getByRole('group', { name: /Menu categories/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Show .*PIZZA.*12 items/i })).toBeInTheDocument();
+  });
+
+  it('tapping a category icon filters the menu to that section', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<ZeroDegreeCustomerView onOrderPlaced={vi.fn()} />);
+    expect(screen.getByText('Cold Coffee (Best Buy)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Show .*PIZZA.*12 items/i }));
+    expect(screen.queryByText('Cold Coffee (Best Buy)')).not.toBeInTheDocument();
+    expect(screen.getByText('Classic Margarita (Plain Cheese)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /All.*19 items/ }));
+    expect(screen.getByText('Cold Coffee (Best Buy)')).toBeInTheDocument();
+  });
+
   it('keeps Place button disabled until Name + Block are filled', () => {
     render(<ZeroDegreeCustomerView onOrderPlaced={vi.fn()} />);
     const buttons = screen.getAllByRole('button', { name: /Add items|Fill Name|Place order|Closed/i });
