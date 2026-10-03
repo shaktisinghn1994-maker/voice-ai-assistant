@@ -3,11 +3,7 @@ import { ZERO_DEGREE_OUTLET } from '../data/zeroDegreeData';
 
 const TAB_CONTEXT: Record<string, string> = {
   customer: 'Students scan, pick items, add Name + Block — order lands on the kitchen screen.',
-  qr: 'One QR per counter and table. Same menu, same cart, same Name + Block rule.',
-  whatsapp: 'Max 2 paid messages per order. Status stays on the free order link.',
-  staff: 'One queue sorted by Block. Verify paid-mark, fire KOT, dispatch to the Block gate.',
-  petpooja: 'Push accepted orders to the existing POS. No re-punching at the counter.',
-  blueprint: 'Pilot math before scaling: cost per order, then outlet two and three.',
+  staff: 'Staff dashboard: live queue, QR setup, WhatsApp, POS stock and costing. Login arrives next.',
 };
 
 interface SiteFooterProps {
