@@ -47,3 +47,9 @@ Test: 1 vendor <30 items, you as 1 shop for few days.
 
 ## Server endpoints (QR MVP, voice disabled 410)
 POST /api/orders/create (Name+Block enforced), POST /api/orders/verify-payment (stub, replace with Razorpay signature), POST /api/whatsapp/send (2-cap), POST /api/whatsapp/incoming (hi->menu+link), POST /api/petpooja/save-order (mock).
+
+## AGREED 2026-10-03: customer/staff split + login LAST
+- Front (public, no login): Customer Page only. Header keeps brand + theme toggle; Staff Queue button becomes Staff Login entry.
+- Behind login: staff dashboard, left rail on desktop (232px, icons + labels + live queue badge) / bottom bar on mobile. Sections: Queue, QR & Setup, WhatsApp, POS & Stock (kill-switch stays), Costing. Nothing deleted, only relocated.
+- Login (built LAST): per-outlet cafe name + password map in code (pilot-grade, treated as shared staff PIN, not a real secret); sessionStorage session + 12h expiry + logout; staff views render only with valid session. No owner/staff roles yet. Upgrade path: Workers KV + hashed passwords + roles when selling.
+- Open items for build time: outlet password(s), session length confirm (12h vs tab-close only).
