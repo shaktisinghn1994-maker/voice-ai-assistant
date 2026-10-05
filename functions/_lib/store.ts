@@ -116,6 +116,44 @@ export function makeResetCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+// Phone digits only: "+91 98204 71829" -> "9820471829", "919820471829" -> "9820471829".
+export function normalizePhoneDigits(raw: unknown): string {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  const ten = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/.test(ten) ? ten : '';
+}
+
+export interface CustomerProfile {
+  collegeId: string;
+  name: string;
+  phone: string;
+  block: string;
+  room: string;
+  payMode: string;
+}
+
+const PROFILE_COLS = 'id AS collegeId, name, phone, block, room, pay_mode AS payMode';
+
+export async function lookupCustomer(db: D1, phone: string): Promise<CustomerProfile | null> {
+  const digits = normalizePhoneDigits(phone);
+  if (!digits) return null;
+  const row = await db
+    .prepare(`SELECT ${PROFILE_COLS} FROM customers WHERE phone = ? ORDER BY last_seen DESC LIMIT 1`)
+    .bind(digits)
+    .first<CustomerProfile>();
+  return row ?? null;
+}
+
+export async function lookupCustomerById(db: D1, collegeId: string): Promise<CustomerProfile | null> {
+  const id = String(collegeId ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  if (id.length < 3) return null;
+  const row = await db
+    .prepare(`SELECT ${PROFILE_COLS} FROM customers WHERE id = ?`)
+    .bind(id)
+    .first<CustomerProfile>();
+  return row ?? null;
+}
+
 export async function requestResetCode(db: D1, outletId: string): Promise<string | null> {
   const user = await db
     .prepare('SELECT username FROM staff_users WHERE outlet_id = ? ORDER BY rowid LIMIT 1')
@@ -201,6 +239,7 @@ export async function saveOrderRecord(db: D1, o: OrderRecord): Promise<void> {
     )
     .run();
   if (o.customerId) {
+    const digits = normalizePhoneDigits(o.phone);
     await db
       .prepare(
         `INSERT INTO customers (id, outlet_id, name, phone, block, room, pay_mode, last_seen)
@@ -209,7 +248,7 @@ export async function saveOrderRecord(db: D1, o: OrderRecord): Promise<void> {
            room = excluded.room, pay_mode = excluded.pay_mode, last_seen = excluded.last_seen,
            success_count = success_count + 0`,
       )
-      .bind(o.customerId, o.outletId, o.customerName, o.phone, o.block, o.room ?? '', o.payMode, Date.now())
+      .bind(o.customerId, o.outletId, o.customerName, digits || o.phone, o.block, o.room ?? '', o.payMode, Date.now())
       .run();
   }
 }

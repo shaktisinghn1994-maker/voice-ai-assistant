@@ -32,3 +32,9 @@ test('order API validation is live', async ({ request }) => {
   });
   expect(res.status()).toBe(400);
 });
+
+test('customer lookup misses cleanly for unknown numbers', async ({ request }) => {
+  const res = await request.post('/api/customer/lookup', { data: { phone: '6000000001' } });
+  expect(res.status()).toBe(200);
+  expect(await res.json()).toEqual({ found: false });
+});

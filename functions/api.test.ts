@@ -6,6 +6,7 @@ import { onRequestPost as incoming } from './api/whatsapp/incoming';
 import { onRequestPost as send } from './api/whatsapp/send';
 import { onRequestPost as staffLogin } from './api/staff/login';
 import { onRequestPost as staffVerify } from './api/staff/verify';
+import { onRequestPost as customerLookup } from './api/customer/lookup';
 
 function post(path: string, body: unknown): Request {
   return new Request(`http://test${path}`, {
@@ -84,5 +85,39 @@ describe('Pages Functions API (Cloudflare production)', () => {
 
     const unconfigured = await staffLogin({ request: post('/api/staff/login', { outletId: 'zd-main', pin: 's3cret' }), env: {} });
     expect(unconfigured.status).toBe(503);
+  });
+
+  it('POST /api/customer/lookup returns saved profiles, misses cleanly', async () => {
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          first: async () => {
+            if (String(sql).includes('FROM customers WHERE phone')) {
+              return args[0] === '9820471829'
+                ? { collegeId: 'MUJ1', name: 'Aarav', phone: '9820471829', block: 'B2', room: '214', payMode: 'upi' }
+                : null;
+            }
+            return null;
+          },
+          all: async () => ({ results: [] }),
+          run: async () => ({}),
+        }),
+      }),
+    };
+    const hit = await customerLookup({
+      request: post('/api/customer/lookup', { phone: '+91 98204 71829' }),
+      env: { DB: db } as never,
+    });
+    expect(hit.status).toBe(200);
+    expect(await hit.json()).toMatchObject({ found: true, name: 'Aarav', block: 'B2' });
+
+    const miss = await customerLookup({
+      request: post('/api/customer/lookup', { phone: '6000000001' }),
+      env: { DB: db } as never,
+    });
+    expect(await miss.json()).toEqual({ found: false });
+
+    const noDb = await customerLookup({ request: post('/api/customer/lookup', { phone: '9820471829' }), env: {} });
+    expect(await noDb.json()).toEqual({ found: false });
   });
 });

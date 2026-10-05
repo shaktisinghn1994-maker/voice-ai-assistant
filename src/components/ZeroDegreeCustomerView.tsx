@@ -84,6 +84,55 @@ export const ZeroDegreeCustomerView: React.FC<{
   const [linkCopied, setLinkCopied] = useState(false);
   const [welcomeBack, setWelcomeBack] = useState<string | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
+  const serverQueried = useRef<Set<string>>(new Set());
+
+  const applyServerProfile = (
+    p: { collegeId?: string; name: string; block: string; room: string; payMode: 'cash' | 'upi' | 'card' },
+    canSetId: boolean,
+  ) => {
+    setName(p.name);
+    setBlock(p.block);
+    setRoom(p.room || '');
+    if (p.payMode) setPayMode(p.payMode);
+    if (canSetId && p.collegeId) setCollegeId(p.collegeId);
+  };
+
+  const clearIdentity = () => {
+    setCollegeId('');
+    setName('');
+    setBlock('');
+    setRoom('');
+    setWelcomeBack(null);
+  };
+
+  const fetchServerProfile = useCallback(async (kind: 'id' | 'phone', value: string, canSetId: boolean) => {
+    const key = `${kind}:${value}`;
+    if (serverQueried.current.has(key)) return;
+    serverQueried.current.add(key);
+    try {
+      const res = await fetch('/api/customer/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(kind === 'id' ? { collegeId: value } : { phone: value }),
+      });
+      const data = (await res.json()) as {
+        found?: boolean; collegeId?: string; name?: string; block?: string; room?: string; payMode?: 'cash' | 'upi' | 'card';
+      };
+      if (res.ok && data.found && data.name && data.block) {
+        applyServerProfile({
+          collegeId: data.collegeId,
+          name: data.name,
+          block: data.block,
+          room: data.room ?? '',
+          payMode: data.payMode ?? 'upi',
+        }, canSetId);
+        setWelcomeBack(`Found your saved details${value.length === 10 ? ` for ${value}` : ''} — confirm and order.`);
+        setIdError(null);
+      }
+    } catch {
+      // offline or dev server without lookup - local form still works
+    }
+  }, []);
 
   const add = (key: string, line: CartLine) => {
     void line;
@@ -144,8 +193,9 @@ export const ZeroDegreeCustomerView: React.FC<{
       setIdError(null);
     } else {
       setWelcomeBack(null);
+      void fetchServerProfile('id', trimmed, false);
     }
-  }, []);
+  }, [fetchServerProfile]);
 
   useEffect(() => {
     if (collegeId.trim().length < 3) {
@@ -155,6 +205,15 @@ export const ZeroDegreeCustomerView: React.FC<{
     const t = setTimeout(() => lookupId(collegeId), 400);
     return () => clearTimeout(t);
   }, [collegeId, lookupId]);
+
+  // New phone or browser? The mobile number alone pulls saved details from the server.
+  useEffect(() => {
+    if (!validPhone || welcomeBack) return;
+    const t = setTimeout(() => {
+      void fetchServerProfile('phone', validPhone, true);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [validPhone, welcomeBack, fetchServerProfile]);
 
   // Close QR modal with Escape
   useEffect(() => {
@@ -441,8 +500,9 @@ export const ZeroDegreeCustomerView: React.FC<{
             )}
           </div>
           {welcomeBack && (
-            <div role="status" aria-live="polite" className="mt-2 p-2.5 rounded-xl text-[13px] font-semibold bg-emerald-950/60 border border-emerald-500/40 text-emerald-300">
-              ✅ {welcomeBack}
+            <div role="status" aria-live="polite" className="mt-2 p-2.5 rounded-xl text-[13px] font-semibold bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 flex items-center justify-between gap-2">
+              <span>✅ {welcomeBack}</span>
+              <button onClick={clearIdentity} className="shrink-0 text-[12px] underline cursor-pointer">Not you?</button>
             </div>
           )}
           {idError && (

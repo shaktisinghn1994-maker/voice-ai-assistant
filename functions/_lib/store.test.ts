@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   completeReset,
+  lookupCustomer,
+  lookupCustomerById,
+  normalizePhoneDigits,
   requestResetCode,
   setStaffPin,
   toCsv,
@@ -18,6 +21,9 @@ function makeDb(): D1 & {
   const users = new Map<string, Record<string, unknown>>();
   const resets = new Map<string, Record<string, unknown>>();
   const orders: Record<string, unknown>[] = [];
+  const customers: Record<string, unknown>[] = [
+    { collegeId: 'MUJ1', name: 'Aarav', phone: '9820471829', block: 'B2', room: '214', payMode: 'upi' },
+  ];
   const stmt = (sql: string) => ({
     bind(...args: unknown[]) {
       const q = sql;
@@ -51,6 +57,12 @@ function makeDb(): D1 & {
             const r = resets.get(String(args[0]));
             if (r && r.used === 0 && (r.expires_at as number) > (args[1] as number)) return r as T;
             return null;
+          }
+          if (q.includes('FROM customers WHERE phone')) {
+            return (customers.find((c) => c.phone === args[0]) ?? null) as T | null;
+          }
+          if (q.includes('FROM customers WHERE id')) {
+            return (customers.find((c) => c.collegeId === args[0]) ?? null) as T | null;
           }
           return null;
         },
@@ -123,8 +135,17 @@ describe('store (D1 hot storage)', () => {
     expect(await requestResetCode(db, 'zd-main')).toBeNull();
   });
 
-  it('formats readable CSV and JSONL exports', () => {
-    const rows = [
+  it('finds customers by phone digits or college ID, exact match only', async () => {
+    const db = makeDb();
+    expect(await lookupCustomer(db, '+91 98204 71829')).toMatchObject({ name: 'Aarav', block: 'B2' });
+    expect(await lookupCustomerById(db, 'muj1')).toMatchObject({ phone: '9820471829' });
+    expect(await lookupCustomer(db, '6000000001')).toBeNull();
+    expect(await lookupCustomer(db, 'not-a-number')).toBeNull();
+    expect(normalizePhoneDigits('+91 98204 71829')).toBe('9820471829');
+    expect(normalizePhoneDigits('123')).toBe('');
+  });
+
+  it('formats readable CSV and JSONL exports', () => {    const rows = [
       { order_id: 'RC-1', grand_total: 250, note: 'less spicy, "extra" cheese' },
       { order_id: 'RC-2', grand_total: 100, note: '' },
     ];

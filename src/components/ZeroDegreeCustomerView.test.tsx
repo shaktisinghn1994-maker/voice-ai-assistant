@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ZeroDegreeCustomerView } from './ZeroDegreeCustomerView';
 import { saveProfile } from '../utils/savedProfiles';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
   it('shows College ID field so repeat customers skip re-typing', () => {
@@ -81,8 +85,7 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
     expect(screen.getByText(/Total \(incl\. GST \+ packing\)/)).toBeInTheDocument();
   });
 
-  it('requires a valid 10-digit mobile number', async () => {
-    const user = userEvent.setup({ delay: null });
+  it('requires a valid 10-digit mobile number', async () => {    const user = userEvent.setup({ delay: null });
     render(<ZeroDegreeCustomerView isOpen onOrderPlaced={vi.fn()} />);
     const addBtns = screen.getAllByRole('button', { name: /Add one/ });
     await user.click(addBtns[0]);
@@ -95,5 +98,23 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
     const blocked = screen.getAllByRole('button', { name: /Add your 10-digit mobile number/ });
     expect(blocked.length).toBeGreaterThan(0);
     blocked.forEach((b) => expect(b).toBeDisabled());
+  });
+
+  it('pulls saved details from the server on a new device via phone number', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          found: true, collegeId: 'MUJ9', name: 'Diya', block: 'G2', room: '305', payMode: 'cash',
+        }),
+      }),
+    );
+    const user = userEvent.setup({ delay: null });
+    localStorage.clear();
+    render(<ZeroDegreeCustomerView isOpen onOrderPlaced={vi.fn()} />);
+    await user.type(screen.getByPlaceholderText(/98765/i), '9876500001');
+    expect(await screen.findByText(/Found your saved details for 9876500001/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/e\.g\. Aarav/i)).toHaveValue('Diya');
   });
 });

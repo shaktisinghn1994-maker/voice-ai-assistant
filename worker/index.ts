@@ -11,6 +11,7 @@ import { onRequestPost as staffRequestReset } from '../functions/api/staff/reque
 import { onRequestPost as staffCompleteReset } from '../functions/api/staff/complete-reset';
 import { onRequestPost as adminExport } from '../functions/api/admin/export';
 import { onRequestPost as adminPrune } from '../functions/api/admin/prune';
+import { onRequestPost as customerLookup } from '../functions/api/customer/lookup';
 import type { PagesContext } from '../functions/_lib/api';
 
 type Handler = (ctx: PagesContext) => Promise<Response> | Response;
@@ -29,6 +30,7 @@ const POST_ROUTES: Record<string, Handler> = {
   '/api/staff/complete-reset': staffCompleteReset,
   '/api/admin/export': adminExport,
   '/api/admin/prune': adminPrune,
+  '/api/customer/lookup': customerLookup,
 };
 
 interface WorkerEnv {
