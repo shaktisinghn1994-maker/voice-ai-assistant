@@ -4,6 +4,8 @@ import { onRequestPost as create } from './api/orders/create';
 import { onRequestPost as verify } from './api/orders/verify-payment';
 import { onRequestPost as incoming } from './api/whatsapp/incoming';
 import { onRequestPost as send } from './api/whatsapp/send';
+import { onRequestPost as staffLogin } from './api/staff/login';
+import { onRequestPost as staffVerify } from './api/staff/verify';
 
 function post(path: string, body: unknown): Request {
   return new Request(`http://test${path}`, {
@@ -61,5 +63,26 @@ describe('Pages Functions API (Cloudflare production)', () => {
     const data = await res.json();
     expect(data.sentCount).toBe(2);
     expect(data.capped).toBe(true);
+  });
+
+  it('POST /api/staff/login verifies PINs without ever shipping them', async () => {
+    const env = {
+      STAFF_PINS_JSON: JSON.stringify({ 'zd-main': { cafeName: 'ZERO DEGREE CAFE', pin: 's3cret' } }),
+      STAFF_TOKEN_SECRET: 'test-secret',
+    };
+    const ok = await staffLogin({
+      request: post('/api/staff/login', { outletId: 'zd-main', pin: 's3cret' }),
+      env,
+    });
+    expect(ok.status).toBe(200);
+    const { token } = await ok.json();
+    const check = await staffVerify({ request: post('/api/staff/verify', { token }), env });
+    expect((await check.json()).valid).toBe(true);
+
+    const bad = await staffLogin({ request: post('/api/staff/login', { outletId: 'zd-main', pin: 'no' }), env });
+    expect(bad.status).toBe(401);
+
+    const unconfigured = await staffLogin({ request: post('/api/staff/login', { outletId: 'zd-main', pin: 's3cret' }), env: {} });
+    expect(unconfigured.status).toBe(503);
   });
 });

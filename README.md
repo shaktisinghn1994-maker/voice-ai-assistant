@@ -25,6 +25,7 @@ Open `http://localhost:3000` → **Customer Page** tab is what the QR link opens
 | `npm run build` | Production Vite build |
 | `npm run lint` | `tsc --noEmit` (strict) + eslint |
 | `npm run test` / `test:watch` | Vitest suite |
+| `npm run test:e2e` | Playwright smoke tests against the live site (`PLAYWRIGHT_BASE_URL` overrides) |
 | `npm run prepush` | **Run before every push:** lint + test + build |
 
 CI (`.github/workflows/test.yml`) runs the same three steps on every push/PR.
@@ -37,7 +38,34 @@ CI (`.github/workflows/test.yml`) runs the same three steps on every push/PR.
 | `POST /api/orders/verify-payment` | Razorpay HMAC check when `RAZORPAY_KEY_SECRET` is set; pilot stub otherwise (test mode only). |
 | `POST /api/whatsapp/incoming` | `hi` → menu + QR link; holds KOT until Name + Block arrive. |
 | `POST /api/whatsapp/send` | Max 2 templates/order (cost cap). |
-| `POST /api/petpooja/save-order` | POS bridge (mock in pilot). |
+| `POST /api/petpooja/save-order` | Real POS push when `PETPOOJA_*` env is set, pilot mock otherwise. |
+
+## Staff login
+
+Staff sections sit behind a cafe name + staff PIN. PINs live **server-side only** (`STAFF_PINS_JSON` env) — the client bundle contains no credentials. Sessions are HMAC-signed tokens (`STAFF_TOKEN_SECRET`) in `sessionStorage` with a 12h expiry, and `/api/staff/login` is rate-limited to 10 attempts/min/IP.
+
+Local dev fallback PIN: `zero-g1-2026` (non-production only, with a console warning).
+
+Production setup (Cloudflare Pages):
+
+```powershell
+$sec = -join ((1..32 | ForEach-Object { '{0:x2}' -f (Get-Random -Max 256) }))
+@{ STAFF_TOKEN_SECRET = $sec
+   STAFF_PINS_JSON = '{"zd-main":{"cafeName":"ZERO DEGREE CAFE","pin":"<SET-A-REAL-PIN>"}}' } | ConvertTo-Json | Out-File $env:TEMP\pe-secrets.json
+npx wrangler pages secret bulk $env:TEMP\pe-secrets.json --project-name parallel-eats
+Remove-Item $env:TEMP\pe-secrets.json -Force
+# redeploy so the new secrets take effect
+```
+
+**Change the default PIN before giving the dashboard to staff.** Server-side accounts (Workers KV + hashed passwords) remain the upgrade path before selling.
+
+## Security headers
+
+ helmet (Express) + `public/_headers` (Pages) + Worker responses all send `nosniff` / `SAMEORIGIN` / strict referrer. CORS on the dev server allows localhost and `*.pages.dev` / `*.workers.dev` only. No CSP — the app relies on inline styles, which a strict policy would break.
+
+## Staff queue persistence
+
+Orders persist per device (`pe-staff-orders:v1`, capped at 100) so a refresh mid-rush loses nothing.
 
 ## Project layout
 

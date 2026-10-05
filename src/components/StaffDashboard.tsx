@@ -23,11 +23,15 @@ interface StaffDashboardProps {
   orders: QROrder[];
   outlets: RestaurantOutlet[];
   selectedOutletId: string;
+  cafeName: string;
   onSelectOutlet: (id: string) => void;
   onOrderCreated: (order: QROrder) => void;
   onUpdateOrder: (id: string, patch: Partial<QROrder>) => void;
   onToggleItemStock: (outletId: string, itemId: string) => void;
   onExit: () => void;
+  onLogout: () => void;
+  isOpen: boolean;
+  onToggleOpen: () => void;
 }
 
 function Loading(): React.ReactElement {
@@ -42,11 +46,15 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   orders,
   outlets,
   selectedOutletId,
+  cafeName,
   onSelectOutlet,
   onOrderCreated,
   onUpdateOrder,
   onToggleItemStock,
   onExit,
+  onLogout,
+  isOpen,
+  onToggleOpen,
 }) => {
   const [section, setSection] = useState<StaffSection>('queue');
 
@@ -76,24 +84,62 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     <div className="flex gap-4 sm:gap-6 items-start pb-24 md:pb-0">
       {/* Left rail - desktop */}
       <aside aria-label="Staff sections" className="hidden md:flex w-[232px] shrink-0 flex-col gap-1.5 sticky top-24 rounded-2xl border border-slate-800 bg-slate-950 p-3">
-        <div className="px-2 pt-1 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          Staff dashboard
+        <div className="px-2 pt-1 pb-2">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Staff dashboard</div>
+          <div className="text-xs font-semibold text-slate-300 truncate">{cafeName}</div>
         </div>
         {SECTIONS.map((s) => navButton(s.key, s.label, s.icon, s.key === 'queue' ? orders.length : undefined, true))}
-        <div className="mt-2 border-t border-slate-800 pt-2">
+        <button
+          onClick={onToggleOpen}
+          aria-pressed={isOpen}
+          aria-label={isOpen ? 'Mark outlet closed' : 'Mark outlet open'}
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-bold cursor-pointer transition-all"
+          style={{ background: isOpen ? '#16a34a' : '#ef4444', color: '#fff' }}
+        >
+          <span aria-hidden="true">{isOpen ? '●' : '○'}</span>
+          {isOpen ? 'OPEN — tap to close' : 'CLOSED — tap to open'}
+        </button>
+        <div className="mt-2 border-t border-slate-800 pt-2 space-y-1">
           <button
             onClick={onExit}
-            className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-slate-100 cursor-pointer transition-all"
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-slate-100 cursor-pointer transition-all"
           >
             <LogOut className="w-5 h-5" />
             Customer page
           </button>
-          <p className="px-2 pt-1 text-[10px] text-slate-500">Staff login arrives next — this screen is open during pilot.</p>
+          <button
+            onClick={onLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-rose-300 hover:bg-rose-950/40 cursor-pointer transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+            Log out
+          </button>
         </div>
       </aside>
 
       {/* Section content */}
       <div className="flex-1 min-w-0">
+        <div className="md:hidden flex items-center justify-between gap-2 mb-3 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2">
+          <span className="text-xs font-semibold text-slate-300 truncate">{cafeName}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onToggleOpen}
+              aria-pressed={isOpen}
+              aria-label={isOpen ? 'Mark outlet closed' : 'Mark outlet open'}
+              className="min-h-[40px] px-3 rounded-lg text-xs font-bold cursor-pointer"
+              style={{ background: isOpen ? '#16a34a' : '#ef4444', color: '#fff' }}
+            >
+              {isOpen ? '● OPEN' : 'CLOSED'}
+            </button>
+            <button
+              onClick={onLogout}
+              aria-label="Log out of staff dashboard"
+              className="min-h-[40px] px-3 rounded-lg text-xs font-semibold text-rose-300 bg-slate-800 cursor-pointer"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
         <Suspense fallback={<Loading />}>
           {section === 'queue' && <StaffQueueView orders={orders} onUpdate={onUpdateOrder} />}
           {section === 'qr' && (

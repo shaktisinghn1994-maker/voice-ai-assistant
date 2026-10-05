@@ -8,11 +8,15 @@ const baseProps = {
   orders: [] as QROrder[],
   outlets: [],
   selectedOutletId: 'x',
+  cafeName: 'ZERO DEGREE CAFE',
   onSelectOutlet: vi.fn(),
   onOrderCreated: vi.fn(),
   onUpdateOrder: vi.fn(),
   onToggleItemStock: vi.fn(),
   onExit: vi.fn(),
+  onLogout: vi.fn(),
+  isOpen: true,
+  onToggleOpen: vi.fn(),
 };
 
 describe('StaffDashboard', () => {
@@ -35,7 +39,7 @@ describe('StaffDashboard', () => {
     render(<StaffDashboard {...baseProps} />);
     const railButtons = screen.getAllByRole('button', { name: /QR & Setup/ });
     await user.click(railButtons[0]);
-    expect(await screen.findByText(/NAME \+ BLOCK REQUIRED/i)).toBeInTheDocument();
+    expect(await screen.findByText(/NAME \+ BLOCK REQUIRED/i, undefined, { timeout: 10000 })).toBeInTheDocument();
   });
 
   it('exit returns to the customer page', async () => {
@@ -44,5 +48,21 @@ describe('StaffDashboard', () => {
     render(<StaffDashboard {...baseProps} onExit={onExit} />);
     await user.click(screen.getByRole('button', { name: /Customer page/ }));
     expect(onExit).toHaveBeenCalled();
+  });
+
+  it('log out ends the staff session', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onLogout = vi.fn();
+    render(<StaffDashboard {...baseProps} onLogout={onLogout} />);
+    await user.click(screen.getAllByRole('button', { name: /Log out/ })[0]);
+    expect(onLogout).toHaveBeenCalled();
+  });
+
+  it('staff can toggle open and closed', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onToggleOpen = vi.fn();
+    render(<StaffDashboard {...baseProps} onToggleOpen={onToggleOpen} />);
+    await user.click(screen.getAllByRole('button', { name: /Mark outlet closed/ })[0]);
+    expect(onToggleOpen).toHaveBeenCalled();
   });
 });

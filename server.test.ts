@@ -32,6 +32,23 @@ describe('API - orders + whatsapp + zip removal', () => {
     expect(res.body.error).toMatch(/Name \+ Block/);
   });
 
+  it('POST /api/staff/login accepts the outlet PIN and returns a token', async () => {
+    const app = createApp();
+    const res = await request(app).post('/api/staff/login').send({ outletId: 'zd-main', pin: 'zero-g1-2026' });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toMatch(/^zd-main\.\d+\.[0-9a-f]+$/);
+    const check = await request(app).post('/api/staff/verify').send({ token: res.body.token });
+    expect(check.body).toEqual({ valid: true, outletId: 'zd-main' });
+  });
+
+  it('POST /api/staff/login rejects wrong PINs without leaking which part failed differently', async () => {
+    const app = createApp();
+    const res = await request(app).post('/api/staff/login').send({ outletId: 'zd-main', pin: 'nope' });
+    expect(res.status).toBe(401);
+    const forged = await request(app).post('/api/staff/verify').send({ token: 'zd-main.9999999999999.deadbeef' });
+    expect(forged.status).toBe(401);
+  });
+
   it('POST /api/orders/create rejects an empty items list', async () => {
     const app = createApp();
     const res = await request(app)

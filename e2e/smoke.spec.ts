@@ -1,0 +1,34 @@
+import { test, expect } from '@playwright/test';
+
+// Live smoke tests against production. Run with:
+//   npm run test:e2e
+// Override target with PLAYWRIGHT_BASE_URL (e.g. a preview deployment).
+
+test('customer page loads with category navigation', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle(/Parallel Eats/);
+  await expect(page.getByRole('group', { name: /Menu categories/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Show .*PIZZA.*12 items/ })).toBeVisible();
+});
+
+test('pizza icon narrows the menu to pizza only', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Show .*PIZZA.*12 items/ }).click();
+  await expect(page.getByText('Classic Margarita (Plain Cheese)')).toBeVisible();
+  await expect(page.getByText('Cold Coffee (Best Buy)')).toHaveCount(0);
+});
+
+test('staff login rejects a wrong PIN with guidance', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'App views' }).getByRole('button', { name: /Staff/ }).click();
+  await page.getByLabel(/Staff PIN/).fill('wrong-pin');
+  await page.getByRole('button', { name: /Open staff dashboard/ }).click();
+  await expect(page.getByRole('alert')).toContainText(/current staff PIN/);
+});
+
+test('order API validation is live', async ({ request }) => {
+  const res = await request.post('/api/orders/create', {
+    data: { outletId: 'zd-main', customerPhone: '+91 1', customerName: '', blockNumber: '', items: [] },
+  });
+  expect(res.status()).toBe(400);
+});

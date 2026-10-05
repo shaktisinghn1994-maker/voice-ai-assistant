@@ -24,6 +24,11 @@ export const CreateOrderSchema = z.object({
 
 export interface PagesEnv {
   RAZORPAY_KEY_SECRET?: string;
+  PETPOOJA_APP_KEY?: string;
+  PETPOOJA_APP_SECRET?: string;
+  PETPOOJA_SAVE_ORDER_URL?: string;
+  STAFF_PINS_JSON?: string;
+  STAFF_TOKEN_SECRET?: string;
 }
 
 export interface PagesContext {
@@ -34,7 +39,13 @@ export interface PagesContext {
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // No CSP: the app relies on inline styles; these three are safe everywhere.
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    },
   });
 }
 

@@ -3,7 +3,7 @@ import { ZERO_DEGREE_OUTLET } from '../data/zeroDegreeData';
 
 const TAB_CONTEXT: Record<string, string> = {
   customer: 'Students scan, pick items, add Name + Block — order lands on the kitchen screen.',
-  staff: 'Staff dashboard: live queue, QR setup, WhatsApp, POS stock and costing. Login arrives next.',
+  staff: 'Staff dashboard: sign in to see the live queue, QR setup, WhatsApp, POS stock and costing.',
 };
 
 interface SiteFooterProps {

@@ -1,9 +1,12 @@
 import express, { NextFunction, Request, Response } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { pushToPetpooja } from './functions/_lib/petpooja';
 
 dotenv.config();
 
@@ -32,6 +35,57 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_MAX = 120;
 const rateHits = new Map<string, number[]>();
 
+const LOGIN_RATE_MAX = 10;
+const loginHits = new Map<string, number[]>();
+
+function loginRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const times = (loginHits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (times.length >= LOGIN_RATE_MAX) return true;
+  times.push(now);
+  loginHits.set(ip, times);
+  return false;
+}
+
+// Staff PINs come from env only — never from the client bundle.
+// STAFF_PINS_JSON e.g. {"zd-main":{"cafeName":"ZERO DEGREE CAFE","pin":"..."}}.
+// Falls back to a documented dev PIN outside production; production fails closed.
+function readStaffPins(): Record<string, { cafeName: string; pin: string }> {
+  try {
+    const raw = process.env.STAFF_PINS_JSON;
+    if (raw) return JSON.parse(raw) as Record<string, { cafeName: string; pin: string }>;
+  } catch {
+    // malformed env - fall through to closed/fallback below
+  }
+  if (process.env.NODE_ENV === 'production') return {};
+  console.warn('[staff-auth] STAFF_PINS_JSON unset: using dev fallback PIN. Set STAFF_PINS_JSON for real staff.');
+  return { 'zd-main': { cafeName: 'ZERO DEGREE CAFE', pin: 'zero-g1-2026' } };
+}
+
+function staffSecret(): string {
+  const secret = process.env.STAFF_TOKEN_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production') throw new Error('STAFF_TOKEN_SECRET is required in production.');
+  return 'pilot-dev-secret-change-me';
+}
+
+function signStaffToken(outletId: string, expiresAt: number): string {
+  const body = `${outletId}.${expiresAt}`;
+  const sig = crypto.createHmac('sha256', staffSecret()).update(body).digest('hex');
+  return `${body}.${sig}`;
+}
+
+function verifyStaffToken(token: string): string | null {
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return null;
+  const [outletId, expStr, sig] = parts;
+  const expiresAt = Number(expStr);
+  if (!outletId || !expiresAt || Date.now() > expiresAt) return null;
+  const expected = crypto.createHmac('sha256', staffSecret()).update(`${outletId}.${expiresAt}`).digest('hex');
+  if (expected.length !== sig.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return null;
+  return outletId;
+}
+
 function rateLimit(req: Request, res: Response, next: NextFunction): void {
   const now = Date.now();
   const key = req.ip ?? 'unknown';
@@ -50,7 +104,51 @@ export function createApp() {
   const app = express();
 
   app.use(express.json({ limit: '5mb' }));
+  // Helmet first so every API response carries sane defaults (no CSP:
+  // the app relies on inline styles, which a strict policy would break).
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(
+    cors({
+      origin: [/^http:\/\/localhost(:\d+)?$/, /\.pages\.dev$/, /\.workers\.dev$/],
+    })
+  );
   app.use('/api/', rateLimit);
+
+  // Staff login: PIN verified here, never in the client bundle. Tight rate limit.
+  app.post('/api/staff/login', async (req, res) => {
+    try {
+      const ip = req.ip ?? 'unknown';
+      if (loginRateLimited(ip)) {
+        res.status(429).json({ error: 'Too many login attempts. Wait a minute and try again.' });
+        return;
+      }
+      const { outletId, pin } = req.body ?? {};
+      const pins = readStaffPins();
+      const entry = typeof outletId === 'string' ? pins[outletId] : undefined;
+      if (!entry || typeof pin !== 'string' || pin.trim() !== entry.pin) {
+        res.status(401).json({ error: 'Wrong PIN for this outlet. Ask the owner for the current staff PIN and try again.' });
+        return;
+      }
+      const expiresAt = Date.now() + 12 * 60 * 60 * 1000;
+      res.json({ token: signStaffToken(outletId, expiresAt), cafeName: entry.cafeName, expiresAt });
+    } catch {
+      res.status(500).json({ error: 'Login failed. Try again.' });
+    }
+  });
+
+  app.post('/api/staff/verify', async (req, res) => {
+    try {
+      const { token } = req.body ?? {};
+      const outletId = typeof token === 'string' ? verifyStaffToken(token) : null;
+      if (!outletId) {
+        res.status(401).json({ valid: false });
+        return;
+      }
+      res.json({ valid: true, outletId });
+    } catch {
+      res.status(500).json({ valid: false });
+    }
+  });
 
   // QR MVP hostel mode: order complete ONLY with Name + Block number. No outside delivery.
   app.post('/api/orders/create', async (req, res) => {
@@ -172,16 +270,18 @@ export function createApp() {
     res.status(410).json({ error: 'TTS disabled in QR MVP.' });
   });
 
-  // 3. Petpooja POS Save Order Webhook Bridge
+  // 3. Petpooja POS Save Order Webhook Bridge (real call when configured, mock in pilot)
   app.post('/api/petpooja/save-order', async (req, res) => {
     try {
       const { payload } = req.body;
-      const randomNum = Math.floor(8100 + Math.random() * 1800);
+      const result = await pushToPetpooja(payload, process.env);
       res.json({
         success: '1',
-        message: 'Order successfully pushed to Petpooja POS terminal and KOT printed.',
-        petpooja_order_id: `PP-ORD-${randomNum}`,
-        kot_number: `KOT #PP-${randomNum}`,
+        message: result.mock
+          ? 'Pilot mock: order accepted locally, push to a real POS terminal when credentials are configured.'
+          : 'Order successfully pushed to Petpooja POS terminal and KOT printed.',
+        petpooja_order_id: result.petpooja_order_id,
+        kot_number: result.kot_number,
         timestamp: new Date().toISOString(),
         received_payload_size: JSON.stringify(payload || {}).length,
       });

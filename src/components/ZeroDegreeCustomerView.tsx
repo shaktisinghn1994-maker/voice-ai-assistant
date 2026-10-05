@@ -11,6 +11,29 @@ interface CartLine {
   qty: number;
 }
 
+interface PlacedReceipt {
+  orderId: string;
+  name: string;
+  phone: string;
+  block: string;
+  room: string;
+  payMode: 'cash' | 'upi' | 'card';
+  note: string;
+  lines: { name: string; variant: string; qty: number; price: number }[];
+  subtotal: number;
+  cgst: number;
+  sgst: number;
+  packaging: number;
+  grandTotal: number;
+  time: string;
+}
+
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  const ten = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/.test(ten) ? ten : '';
+}
+
 const CATEGORY_ICONS: { match: string; icon: string }[] = [
   { match: 'PIZZA', icon: '🍕' },
   { match: 'COFFEE', icon: '☕' },
@@ -39,20 +62,26 @@ function categoryIcon(title: string): string {
 export const ZeroDegreeCustomerView: React.FC<{
   onOrderPlaced: (summary: string, orderObj?: QROrder) => void;
   onSwitchToStaff?: () => void;
-}> = ({ onOrderPlaced, onSwitchToStaff }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  isOpen: boolean;
+  canToggleOpen?: boolean;
+  onToggleOpen?: () => void;
+}> = ({ onOrderPlaced, isOpen, canToggleOpen, onToggleOpen }) => {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [variantSel, setVariantSel] = useState<Record<string, string>>({});
   const [activeCat, setActiveCat] = useState<string>('all');
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const scanBtnRef = useRef<HTMLButtonElement | null>(null);
   const [collegeId, setCollegeId] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [block, setBlock] = useState('');
   const [room, setRoom] = useState('');
   const [note, setNote] = useState('');
   const [payMode, setPayMode] = useState<'cash' | 'upi' | 'card'>('upi');
-  const [placed, setPlaced] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<PlacedReceipt | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [welcomeBack, setWelcomeBack] = useState<string | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
 
@@ -81,7 +110,12 @@ export const ZeroDegreeCustomerView: React.FC<{
     });
   });
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
-  const canOrder = isOpen && lines.length > 0 && name.trim().length >= 2 && block !== '';
+  const cgst = Math.round(total * 0.025);
+  const sgst = Math.round(total * 0.025);
+  const packaging = lines.length > 0 ? 10 : 0;
+  const grandTotal = total + cgst + sgst + packaging;
+  const validPhone = normalizePhone(phone);
+  const canOrder = isOpen && lines.length > 0 && name.trim().length >= 2 && block !== '' && validPhone !== '';
 
   const catCount = (title: string): number =>
     ZERO_DEGREE_MENU.find((c) => c.title === title)?.items.length ?? 0;
@@ -132,6 +166,11 @@ export const ZeroDegreeCustomerView: React.FC<{
     return () => window.removeEventListener('keydown', onKey);
   }, [showQRModal]);
 
+  const closeQRModal = () => {
+    setShowQRModal(false);
+    scanBtnRef.current?.focus?.();
+  };
+
   const handleIdBlur = () => {
     if (!collegeId.trim()) return;
     const found = findProfileById(collegeId);
@@ -147,22 +186,39 @@ export const ZeroDegreeCustomerView: React.FC<{
     if (!canOrder) return;
     const oid = `ZD-${Date.now().toString().slice(-6)}`;
     const cid = collegeId.trim().toUpperCase().replace(/\s+/g, '');
-    const summary = `${oid} | ${name.trim()}${cid ? ' (' + cid + ')' : ''} | Block ${block}${room ? ' R' + room : ''} | ${lines.length} items Rs ${total} | ${payMode} (outside app)${note ? ' | ' + note : ''}`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // Save profile for next time if College ID given
     if (cid.length >= 3) {
       saveProfile({ collegeId: cid, name: name.trim(), block, room: room.trim(), payMode, lastUsed: Date.now() });
     }
 
+    const receipt: PlacedReceipt = {
+      orderId: oid,
+      name: name.trim(),
+      phone: validPhone,
+      block,
+      room: room.trim(),
+      payMode,
+      note: note.trim(),
+      lines: lines.map((l) => ({ name: l.name, variant: l.variant, qty: l.qty, price: l.price })),
+      subtotal: total,
+      cgst,
+      sgst,
+      packaging,
+      grandTotal,
+      time,
+    };
+
     const orderObj: QROrder = {
       orderId: oid,
       outletId: 'zd-main',
       petpoojaRestId: ZERO_DEGREE_OUTLET.phone,
-      customerPhone: '+91 9876543210',
+      customerPhone: `+91 ${validPhone}`,
       collegeId: cid || undefined,
       customerName: name.trim(),
       isRepeat: !!cid && !!welcomeBack,
-      trustTier: 'repeat_verified',
+      trustTier: !!cid && !!welcomeBack ? 'repeat_verified' : 'new_unknown',
       items: lines.map((l) => ({
         item_id: l.itemId,
         item_name: l.name,
@@ -174,24 +230,27 @@ export const ZeroDegreeCustomerView: React.FC<{
         total_price: l.price * l.qty,
       })),
       subtotal: total,
-      cgst: Math.round(total * 0.025),
-      sgst: Math.round(total * 0.025),
-      packagingCharge: 10,
+      cgst,
+      sgst,
+      packagingCharge: packaging,
       deliveryCharge: 0,
-      grandTotal: total + Math.round(total * 0.05) + 10,
+      grandTotal,
       advancePaid: 0,
       paymentMode: payMode === 'upi' ? 'UPI_PREPAID' : payMode === 'cash' ? 'COD' : 'COUNTER',
-      paymentStatus: payMode === 'upi' ? 'paid' : 'unpaid',
+      paymentStatus: 'unpaid',
       status: 'pending_staff_accept',
       blockNumber: block,
       roomNo: room,
       instructions: note,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: time,
     };
 
-    setPlaced(summary);
-    onOrderPlaced(summary, orderObj);
+    setPlaced(receipt);
+    setCart({});
+    onOrderPlaced(`${oid} placed for ${name.trim()} — Rs ${grandTotal}. Staff will confirm on WhatsApp.`, orderObj);
   };
+
+  const payHint = payMode === 'upi' ? 'Pay on UPI when staff confirms' : payMode === 'cash' ? 'Keep cash ready at the Block gate' : 'Pay by card on delivery';
 
   const ctaLabel = !isOpen
     ? 'Closed - not taking orders'
@@ -199,7 +258,9 @@ export const ZeroDegreeCustomerView: React.FC<{
       ? 'Add items to order'
       : !name.trim() || !block
         ? 'Fill Name + Block to complete'
-        : `Place order • Rs ${total}`;
+        : !validPhone
+          ? 'Add your 10-digit mobile number'
+          : `Place order • Rs ${grandTotal}`;
 
   return (
     <div className="zd-page min-h-screen pb-24 sm:pb-10">
@@ -221,16 +282,33 @@ export const ZeroDegreeCustomerView: React.FC<{
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setShowQRModal(true)}
+                ref={scanBtnRef}
+                onClick={() => { setShowQRModal(true); setLinkCopied(false); }}
                 className="min-h-[44px] text-sm px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-95 transition-all"
                 title="Scan QR on phone"
               >
-                <span>📱</span>
+                <span aria-hidden="true">📱</span>
                 <span>Scan QR</span>
               </button>
-              <button onClick={() => setIsOpen(!isOpen)} className="min-h-[44px] min-w-[88px] text-sm px-4 py-2.5 rounded-xl font-bold cursor-pointer active:scale-95 transition-all" style={{ background: isOpen ? '#16a34a' : '#ef4444', color: '#fff' }}>
-                {isOpen ? '● OPEN' : 'CLOSED'}
-              </button>
+              {canToggleOpen ? (
+                <button
+                  onClick={onToggleOpen}
+                  aria-pressed={isOpen}
+                  aria-label={isOpen ? 'Mark outlet closed' : 'Mark outlet open'}
+                  className="min-h-[44px] min-w-[88px] text-sm px-4 py-2.5 rounded-xl font-bold cursor-pointer active:scale-95 transition-all"
+                  style={{ background: isOpen ? '#16a34a' : '#ef4444', color: '#fff' }}
+                >
+                  {isOpen ? '● OPEN' : 'CLOSED'}
+                </button>
+              ) : (
+                <span
+                  role="status"
+                  className="min-h-[44px] min-w-[88px] text-sm px-4 py-2.5 rounded-xl font-bold inline-flex items-center justify-center"
+                  style={{ background: isOpen ? '#16a34a' : '#ef4444', color: '#fff' }}
+                >
+                  {isOpen ? '● OPEN' : 'CLOSED'}
+                </span>
+              )}
             </div>
           </div>
           {!isOpen && (
@@ -301,7 +379,7 @@ export const ZeroDegreeCustomerView: React.FC<{
                       </div>
                       <div className={`shrink-0 flex items-center gap-1.5 p-1 rounded-xl transition-all ${qty > 0 ? 'bg-amber-500/15 border border-amber-500/40 shadow-sm' : ''}`}>
                         <button
-                          aria-label="Remove one"
+                          aria-label={`Remove one ${it.name} (${v.label})`}
                           onClick={() => sub(key)}
                           className="w-11 h-11 rounded-full bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-900 font-extrabold text-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 touch-manipulation"
                         >
@@ -317,7 +395,7 @@ export const ZeroDegreeCustomerView: React.FC<{
                           {qty}
                         </span>
                         <button
-                          aria-label="Add one"
+                          aria-label={`Add one ${it.name} (${v.label})`}
                           onClick={() => add(key, { itemId: it.id, name: it.name, variant: v.label, price: v.price, qty: 1 })}
                           className="w-11 h-11 rounded-full text-white font-extrabold text-xl flex items-center justify-center cursor-pointer transition-all active:scale-95 shadow-sm touch-manipulation"
                           style={{ background: '#111' }}
@@ -380,6 +458,23 @@ export const ZeroDegreeCustomerView: React.FC<{
               <input id="zd-name" name="customerName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aarav…" autoComplete="name" className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none" />
             </div>
             <div>
+              <label htmlFor="zd-phone" className="block text-xs font-semibold text-slate-300 mb-1">Mobile number *</label>
+              <input
+                id="zd-phone"
+                name="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onBlur={() => setPhoneTouched(true)}
+                placeholder="e.g. 98765 43210…"
+                inputMode="tel"
+                autoComplete="tel"
+                className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none"
+              />
+              {phoneTouched && phone.trim() !== '' && validPhone === '' && (
+                <p className="mt-1 text-[12px] text-rose-300">Enter a valid 10-digit mobile number so staff can reach you.</p>
+              )}
+            </div>
+            <div>
               <label htmlFor="zd-block" className="block text-xs font-semibold text-slate-300 mb-1">Block *</label>
               <select id="zd-block" name="block" value={block} onChange={(e) => setBlock(e.target.value)} className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-base text-white focus:border-amber-500 focus:outline-none min-h-[48px]">
                 <option value="">Select Block *</option>
@@ -401,26 +496,47 @@ export const ZeroDegreeCustomerView: React.FC<{
           </div>
           <label htmlFor="zd-note" className="block text-xs font-semibold text-slate-300 mt-2.5 mb-1">Note <span className="font-normal text-slate-500">(optional)</span></label>
           <input id="zd-note" name="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. thin crust, less spicy, call on arrival…" className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none" />
-          <div className="mt-3 text-sm font-mono text-slate-300">Total Rs {total} • {lines.length} lines • Pay {payMode} outside app, staff will tick.</div>
+          <div className="mt-3 rounded-xl border border-slate-700/60 p-3 text-sm font-mono text-slate-300 space-y-1">
+            <div className="flex justify-between"><span>Subtotal</span><span>Rs {total}</span></div>
+            <div className="flex justify-between"><span>CGST + SGST (5%)</span><span>Rs {cgst + sgst}</span></div>
+            <div className="flex justify-between"><span>Packing</span><span>Rs {packaging}</span></div>
+            <div className="flex justify-between font-bold text-white text-base pt-1 border-t border-slate-700/60"><span>Total</span><span>Rs {grandTotal}</span></div>
+            <div className="text-[11px] font-sans text-slate-400">{payHint} — staff confirms on WhatsApp.</div>
+          </div>
           {/* Desktop / inline CTA */}
           <button onClick={place} disabled={!canOrder} className="hidden sm:block mt-3 w-full min-h-[48px] py-3 rounded-xl font-bold text-[15px] cursor-pointer disabled:opacity-40 active:scale-[0.99] transition-all" style={{ background: '#f59e0b', color: '#111' }}>
             {ctaLabel}
           </button>
 
           {placed && (
-            <div role="status" aria-live="polite" className="mt-3 p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 space-y-2">
-              <div className="text-xs font-mono font-bold flex items-center justify-between gap-2">
-                <span>✅ ORDER SENT TO STAFF KITCHEN QUEUE</span>
+            <div role="status" aria-live="polite" className="mt-3 p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 space-y-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-mono font-bold">✅ ORDER SENT — {placed.orderId}</span>
+                <span className="text-[11px] font-mono">{placed.time}</span>
               </div>
-              <div className="text-xs font-mono break-words">{placed}</div>
-              {onSwitchToStaff && (
-                <button
-                  onClick={onSwitchToStaff}
-                  className="mt-1 w-full min-h-[44px] py-2.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-sm rounded-xl cursor-pointer transition-colors"
-                >
-                  👉 Open Staff Kitchen Queue
-                </button>
-              )}
+              <ul className="text-xs font-mono space-y-0.5">
+                {placed.lines.map((l) => (
+                  <li key={`${l.name}-${l.variant}`} className="flex justify-between gap-2">
+                    <span className="truncate">{l.qty}× {l.name} ({l.variant})</span>
+                    <span>Rs {l.price * l.qty}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="text-xs font-mono flex justify-between border-t border-emerald-500/30 pt-1.5">
+                <span>Total (incl. GST + packing)</span>
+                <span className="font-bold">Rs {placed.grandTotal}</span>
+              </div>
+              <p className="text-[12px]">
+                {placed.name} • Block {placed.block}
+                {placed.room ? `, Room ${placed.room}` : ''} • {placed.phone}
+              </p>
+              <p className="text-[12px]">{payHint}. Show this screen or your College ID at the counter.</p>
+              <button
+                onClick={() => setPlaced(null)}
+                className="w-full min-h-[44px] py-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-sm rounded-xl cursor-pointer transition-colors"
+              >
+                Order more
+              </button>
             </div>
           )}
 
@@ -447,7 +563,8 @@ export const ZeroDegreeCustomerView: React.FC<{
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ overscrollBehavior: 'contain' }}>
           <div role="dialog" aria-modal="true" aria-label="Menu QR code" className="zd-surface border border-slate-800 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl relative">
             <button
-              onClick={() => setShowQRModal(false)}
+              onClick={closeQRModal}
+              autoFocus
               className="absolute top-3 right-3 text-slate-400 hover:text-white w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center cursor-pointer font-bold"
               aria-label="Close QR code dialog"
             >
@@ -477,16 +594,21 @@ export const ZeroDegreeCustomerView: React.FC<{
             </div>
 
             <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  navigator.clipboard.writeText(window.location.href);
-                  alert('Menu URL copied to clipboard!');
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  setLinkCopied(true);
+                } catch {
+                  setLinkCopied(false);
                 }
               }}
               className="w-full min-h-[48px] py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-semibold rounded-xl text-sm cursor-pointer border border-slate-700"
             >
               📋 Copy Menu Web Link
             </button>
+            {linkCopied && (
+              <p role="status" className="mt-2 text-[12px] font-semibold text-emerald-300">✅ Link copied — share it on WhatsApp.</p>
+            )}
           </div>
         </div>
       )}

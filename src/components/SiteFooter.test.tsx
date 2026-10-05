@@ -19,7 +19,7 @@ describe('SiteFooter', () => {
 
   it('shows context for the active section', () => {
     render(<SiteFooter tabs={TABS} activeTab="staff" onNavigate={vi.fn()} />);
-    expect(screen.getByText(/Staff dashboard: live queue/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in to see the live queue/i)).toBeInTheDocument();
   });
 
   it('quick links navigate to sections', async () => {

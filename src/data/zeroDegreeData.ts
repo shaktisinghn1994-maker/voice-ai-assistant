@@ -19,12 +19,18 @@ export interface ZDCategory {
 }
 
 export const ZERO_DEGREE_OUTLET = {
+  id: 'zd-main',
   name: 'ZERO DEGREE CAFE',
   sub: 'Sip & Eat | Estd 2023',
   address: 'G1 Block near Chief Warden Office, GHS Hostel, Manipal University Jaipur',
   phone: '+91 82336 73311',
   hours: 'Open 11 AM - 11 PM, all days',
 };
+
+// Pilot staff directory: cafe names per outlet (no secrets — PINs live server-side).
+export const OUTLET_CREDENTIALS: { outletId: string; cafeName: string }[] = [
+  { outletId: 'zd-main', cafeName: 'ZERO DEGREE CAFE' },
+];
 
 export const ZERO_DEGREE_MENU: ZDCategory[] = [
   {
