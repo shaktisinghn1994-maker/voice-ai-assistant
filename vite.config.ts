@@ -52,7 +52,7 @@ export default defineConfig(() => {
           process.env.DISABLE_HMR === 'true'
             ? null
             : {
-                ignored: ['**/.opencode/**', '**/.git/**', '**/dev-dist/**', '**/.gemini/**'],
+                ignored: ['**/.opencode/**', '**/.git/**', '**/dev-dist/**', '**/.gemini/**', '**/public/**'],
               },
       },
     test: {

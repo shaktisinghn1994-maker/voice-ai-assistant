@@ -54,6 +54,8 @@ const CATEGORY_ICONS: { match: string; icon: string }[] = [
   { match: 'ICE TEA', icon: '🧋' },
 ];
 
+const ORDER_PAGE_URL = 'https://parallel-eats.pages.dev/';
+
 function categoryIcon(title: string): string {
   const upper = title.toUpperCase();
   return CATEGORY_ICONS.find((c) => upper.includes(c.match))?.icon ?? '🍽️';
@@ -635,17 +637,15 @@ export const ZeroDegreeCustomerView: React.FC<{
               ZERO DEGREE MENU QR
             </div>
 
-            <h3 className="text-lg font-bold text-white mb-1">Scan with Mobile Phone</h3>
+            <h3 className="text-lg font-bold text-white mb-1">Scan to order</h3>
             <p className="text-[13px] text-slate-400 mb-4">
-              Point your phone camera at this QR code to open the Zero Degree ordering menu directly on your phone.
+              Point any phone camera at this code — it opens this exact order page, on any network.
             </p>
 
             <div className="bg-white p-4 rounded-xl inline-block shadow-inner mb-4">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                  typeof window !== 'undefined' ? window.location.href : 'https://parallel-eats.app'
-                )}&color=000000&bgcolor=ffffff`}
-                alt="QR code linking to this ordering menu"
+                src="/menu-qr.png"
+                alt="QR code opening the Parallel Eats order page"
                 width={208}
                 height={208}
                 loading="lazy"
@@ -656,7 +656,7 @@ export const ZeroDegreeCustomerView: React.FC<{
             <button
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(window.location.href);
+                  await navigator.clipboard.writeText(ORDER_PAGE_URL);
                   setLinkCopied(true);
                 } catch {
                   setLinkCopied(false);
@@ -664,10 +664,10 @@ export const ZeroDegreeCustomerView: React.FC<{
               }}
               className="w-full min-h-[48px] py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 font-semibold rounded-xl text-sm cursor-pointer border border-slate-700"
             >
-              📋 Copy Menu Web Link
+              📋 Copy order page link
             </button>
             {linkCopied && (
-              <p role="status" className="mt-2 text-[12px] font-semibold text-emerald-300">✅ Link copied — share it on WhatsApp.</p>
+              <p role="status" className="mt-2 text-[12px] font-semibold text-emerald-300">✅ Link copied — paste it in any WhatsApp chat.</p>
             )}
           </div>
         </div>
