@@ -7,6 +7,9 @@ import { onRequestPost as send } from './api/whatsapp/send';
 import { onRequestPost as staffLogin } from './api/staff/login';
 import { onRequestPost as staffVerify } from './api/staff/verify';
 import { onRequestPost as customerLookup } from './api/customer/lookup';
+import { onRequestGet as ordersLive } from './api/orders/live';
+import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from './api/outlet/status';
+import { hmacHex } from './_lib/api';
 
 function post(path: string, body: unknown): Request {
   return new Request(`http://test${path}`, {
@@ -119,5 +122,53 @@ describe('Pages Functions API (Cloudflare production)', () => {
 
     const noDb = await customerLookup({ request: post('/api/customer/lookup', { phone: '9820471829' }), env: {} });
     expect(await noDb.json()).toEqual({ found: false });
+  });
+
+  it('shares one live feed and one OPEN/CLOSED flag per outlet', async () => {
+    const secret = 'feed-secret';
+    const sign = async (outletId: string) => {
+      const exp = Date.now() + 3600_000;
+      return `${outletId}.${exp}.${await hmacHex(secret, `${outletId}.${exp}`)}`;
+    };
+    const authed = async (path: string) =>
+      new Request(`http://test${path}`, { headers: { Authorization: `Bearer ${await sign('zd-main')}` } });
+    const authedPost = async (path: string, body: unknown) =>
+      new Request(`http://test${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await sign('zd-main')}` },
+        body: JSON.stringify(body),
+      });
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          first: async () => {
+            void args;
+            if (String(sql).startsWith('SELECT is_open')) return null;
+            return null;
+          },
+          all: async () => ({
+            results: String(sql).includes('FROM orders')
+              ? [{ order_id: 'RC-9', outlet_id: 'zd-main', customer_id: '', customer_name: 'Aarav', phone: '9820471829', block: 'B1', room: '', items_json: '[]', grand_total: 120, pay_mode: 'COD', pay_status: 'unpaid', status: 'pending_staff_accept', note: '', created_at: 1 }]
+              : [],
+          }),
+          run: async () => ({}),
+        }),
+      }),
+    };
+    const env = { STAFF_TOKEN_SECRET: secret, DB: db } as never;
+
+    const anon = await ordersLive({ request: new Request('http://test/api/orders/live'), env: {} as never });
+    expect(anon.status).toBe(401);
+
+    const feed = await ordersLive({ request: await authed('/api/orders/live'), env });
+    const feedBody = await feed.json();
+    expect(feed.status).toBe(200);
+    expect(feedBody.orders.map((o: { orderId: string }) => o.orderId)).toEqual(['RC-9']);
+
+    const closed = await outletStatusPost({ request: await authedPost('/api/outlet/status', { isOpen: false }), env });
+    expect((await closed.json()).isOpen).toBe(false);
+
+    const status = await outletStatusGet({ request: await authed('/api/outlet/status?outletId=zd-main'), env });
+    expect(status.status).toBe(200);
   });
 });

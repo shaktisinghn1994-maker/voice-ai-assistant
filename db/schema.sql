@@ -74,3 +74,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at INTEGER DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audit_outlet_time ON audit_log(outlet_id, created_at);
+
+-- One row per outlet: shared OPEN/CLOSED visible to every phone.
+CREATE TABLE IF NOT EXISTS outlet_status (
+  outlet_id TEXT PRIMARY KEY,
+  is_open INTEGER DEFAULT 1,
+  updated_at INTEGER DEFAULT (strftime('%s','now'))
+);

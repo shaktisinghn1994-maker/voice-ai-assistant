@@ -218,6 +218,7 @@ export interface OrderRecord {
   phone: string;
   block: string;
   room?: string;
+  note?: string;
   items: unknown[];
   subtotal: number;
   tax: number;
@@ -231,11 +232,11 @@ export async function saveOrderRecord(db: D1, o: OrderRecord): Promise<void> {
     .prepare(
       `INSERT OR REPLACE INTO orders
        (order_id, outlet_id, customer_id, customer_name, phone, block, room, items_json, subtotal, tax, packaging, grand_total, pay_mode, pay_status, status, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'pending_staff_accept', '')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'pending_staff_accept', ?)`,
     )
     .bind(
       o.orderId, o.outletId, o.customerId ?? '', o.customerName, o.phone, o.block, o.room ?? '',
-      JSON.stringify(o.items), o.subtotal, o.tax, o.packaging, o.grandTotal, o.payMode,
+      JSON.stringify(o.items), o.subtotal, o.tax, o.packaging, o.grandTotal, o.payMode, o.note ?? '',
     )
     .run();
   if (o.customerId) {
@@ -251,6 +252,83 @@ export async function saveOrderRecord(db: D1, o: OrderRecord): Promise<void> {
       .bind(o.customerId, o.outletId, o.customerName, digits || o.phone, o.block, o.room ?? '', o.payMode, Date.now())
       .run();
   }
+}
+
+// --- Shared outlet OPEN/CLOSED + live order feed (every phone sees the same) ---
+
+export async function getOutletStatus(db: D1, outletId: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT is_open FROM outlet_status WHERE outlet_id = ?')
+    .bind(outletId)
+    .first<{ is_open: number }>();
+  return row ? row.is_open === 1 : true;
+}
+
+export async function setOutletStatus(db: D1, outletId: string, isOpen: boolean): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO outlet_status (outlet_id, is_open, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(outlet_id) DO UPDATE SET is_open = excluded.is_open, updated_at = excluded.updated_at`,
+    )
+    .bind(outletId, isOpen ? 1 : 0, Math.floor(Date.now() / 1000))
+    .run();
+}
+
+export interface LiveOrder {
+  orderId: string;
+  outletId: string;
+  customerName: string;
+  customerPhone: string;
+  collegeId: string;
+  blockNumber: string;
+  roomNo: string;
+  items: { quantity: number; item_name: string }[];
+  instructions: string;
+  grandTotal: number;
+  paymentMode: string;
+  paymentStatus: string;
+  status: string;
+  createdAt: number;
+}
+
+export async function listLiveOrders(db: D1, outletId: string, sinceSec = 0, limit = 50): Promise<LiveOrder[]> {
+  const res = await db
+    .prepare(
+      `SELECT order_id, outlet_id, customer_id, customer_name, phone, block, room, items_json,
+              grand_total, pay_mode, pay_status, status, note, created_at
+       FROM orders WHERE outlet_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .bind(outletId, sinceSec, Math.min(limit, 50))
+    .all<Record<string, unknown>>();
+  return res.results.map((r) => {
+    const items: { quantity: number; item_name: string }[] = [];
+    try {
+      const parsed = JSON.parse(String(r.items_json ?? '[]')) as unknown[];
+      for (const i of parsed) {
+        if (typeof i !== 'object' || i === null) continue;
+        const row = i as Record<string, unknown>;
+        items.push({ quantity: Number(row.quantity) || 0, item_name: String(row.item_name ?? row.name ?? 'Item') });
+      }
+    } catch {
+      // corrupt items payload - show the order without lines
+    }
+    return {
+      orderId: String(r.order_id),
+      outletId: String(r.outlet_id),
+      customerName: String(r.customer_name ?? ''),
+      customerPhone: String(r.phone ?? ''),
+      collegeId: String(r.customer_id ?? ''),
+      blockNumber: String(r.block ?? ''),
+      roomNo: String(r.room ?? ''),
+      items,
+      instructions: String(r.note ?? ''),
+      grandTotal: Number(r.grand_total) || 0,
+      paymentMode: String(r.pay_mode ?? ''),
+      paymentStatus: String(r.pay_status ?? 'unpaid'),
+      status: String(r.status ?? 'pending_staff_accept'),
+      createdAt: Number(r.created_at) || 0,
+    };
+  });
 }
 
 // --- Readable exports (CSV / JSONL) with hard caps ---

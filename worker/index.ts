@@ -12,6 +12,8 @@ import { onRequestPost as staffCompleteReset } from '../functions/api/staff/comp
 import { onRequestPost as adminExport } from '../functions/api/admin/export';
 import { onRequestPost as adminPrune } from '../functions/api/admin/prune';
 import { onRequestPost as customerLookup } from '../functions/api/customer/lookup';
+import { onRequestGet as ordersLive } from '../functions/api/orders/live';
+import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from '../functions/api/outlet/status';
 import type { PagesContext } from '../functions/_lib/api';
 
 type Handler = (ctx: PagesContext) => Promise<Response> | Response;
@@ -31,6 +33,12 @@ const POST_ROUTES: Record<string, Handler> = {
   '/api/admin/export': adminExport,
   '/api/admin/prune': adminPrune,
   '/api/customer/lookup': customerLookup,
+  '/api/outlet/status': outletStatusPost,
+};
+
+const GET_ROUTES: Record<string, Handler> = {
+  '/api/orders/live': ordersLive,
+  '/api/outlet/status': outletStatusGet,
 };
 
 interface WorkerEnv {
@@ -62,7 +70,12 @@ export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
 
-    const handler = request.method === 'POST' ? POST_ROUTES[url.pathname] : undefined;
+    const handler =
+      request.method === 'POST'
+        ? POST_ROUTES[url.pathname]
+        : request.method === 'GET'
+          ? GET_ROUTES[url.pathname]
+          : undefined;
     if (handler) {
       try {
         return await handler({ request, env });

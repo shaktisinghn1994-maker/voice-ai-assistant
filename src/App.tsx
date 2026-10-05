@@ -17,6 +17,21 @@ import { useTheme } from './hooks/useTheme';
 
 import { ZeroDegreeCustomerView } from './components/ZeroDegreeCustomerView';
 
+interface LiveFeedOrder {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  collegeId: string;
+  blockNumber: string;
+  roomNo: string;
+  items: { quantity: number; item_name: string }[];
+  instructions: string;
+  grandTotal: number;
+  paymentMode: string;
+  paymentStatus: string;
+  status: string;
+}
+
 type AppView = 'customer' | 'staff-login' | 'staff';
 
 const FOOTER_TABS: [string, string][] = [
@@ -39,6 +54,7 @@ export default function App() {
   const [orders, setOrders] = useState<QROrder[]>(loadOrders);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locallyTouched = useRef<Set<string>>(new Set());
   const { theme, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -50,6 +66,104 @@ export default function App() {
   useEffect(() => {
     saveOrders(orders);
   }, [orders]);
+
+  // Shared OPEN/CLOSED: server is truth, localStorage is the offline fallback.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/outlet/status?outletId=zd-main');
+        const data = (await res.json()) as { isOpen?: boolean };
+        if (!cancelled && res.ok && typeof data.isOpen === 'boolean') {
+          setOutletOpen(data.isOpen);
+        }
+      } catch {
+        // offline or dev server - keep the local fallback
+      }
+    };
+    void load();
+    const t = setInterval(load, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  // Live kitchen feed: staff screens share one queue across phones.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const token = getSession()?.token;
+      if (!token || cancelled) return;
+      try {
+        const res = await fetch('/api/orders/live', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { orders?: LiveFeedOrder[] };
+        if (!Array.isArray(data.orders)) return;
+        const fresh = data.orders.map(
+          (o) =>
+            ({
+              orderId: o.orderId,
+              outletId: 'zd-main',
+              petpoojaRestId: '',
+              customerPhone: o.customerPhone,
+              collegeId: o.collegeId || undefined,
+              customerName: o.customerName,
+              isRepeat: false,
+              trustTier: 'new_unknown',
+              items: o.items.map((i) => ({
+                item_id: '',
+                item_name: i.item_name,
+                variation_id: '',
+                variation_name: '',
+                quantity: i.quantity,
+                unit_price: 0,
+                addons: [],
+                total_price: 0,
+              })),
+              subtotal: o.grandTotal,
+              cgst: 0,
+              sgst: 0,
+              packagingCharge: 0,
+              deliveryCharge: 0,
+              grandTotal: o.grandTotal,
+              advancePaid: 0,
+              paymentMode: (['UPI_PREPAID', 'COD', 'COUNTER'].includes(o.paymentMode)
+                ? o.paymentMode
+                : 'COD') as QROrder['paymentMode'],
+              paymentStatus: o.paymentStatus,
+              status: o.status,
+              blockNumber: o.blockNumber,
+              roomNo: o.roomNo,
+              instructions: o.instructions,
+              deliveryAddress: `Block ${o.blockNumber}`,
+              createdAt: '',
+            }) as QROrder,
+        );
+        setOrders((prev) => {
+          const prevById = new Map(prev.map((p) => [p.orderId, p]));
+          const merged = fresh.map((f) =>
+            prevById.has(f.orderId) && locallyTouched.current.has(f.orderId) ? (prevById.get(f.orderId) as QROrder) : f,
+          );
+          const freshIds = new Set(fresh.map((f) => f.orderId));
+          for (const p of prev) {
+            if (!freshIds.has(p.orderId)) merged.push(p);
+          }
+          return merged;
+        });
+      } catch {
+        // offline - keep the local queue
+      }
+    };
+    void poll();
+    const t = setInterval(poll, 12000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -79,14 +193,28 @@ export default function App() {
   };
 
   const toggleOutletOpen = () => {
-    setOutletOpen((open) => {
-      try {
-        localStorage.setItem('pe-outlet-open:v1', open ? 'closed' : 'open');
-      } catch {
-        // ignore
-      }
-      return !open;
-    });
+    const next = !outletOpen;
+    setOutletOpen(next);
+    try {
+      localStorage.setItem('pe-outlet-open:v1', next ? 'open' : 'closed');
+    } catch {
+      // ignore
+    }
+    // Push to the server so every phone sees it; revert + warn on failure.
+    const token = getSession()?.token;
+    if (!token) return;
+    fetch('/api/outlet/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isOpen: next }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('not saved');
+      })
+      .catch(() => {
+        setOutletOpen(!next);
+        showToast('Open/close did not reach the server — check internet and retry.');
+      });
   };
 
   const handleOrderCreated = (o: QROrder) => {
@@ -95,6 +223,7 @@ export default function App() {
   };
 
   const handleUpdateOrder = (id: string, patch: Partial<QROrder>) => {
+    locallyTouched.current.add(id);
     setOrders((prev) => prev.map((o) => (o.orderId === id ? { ...o, ...patch } : o)));
   };
 

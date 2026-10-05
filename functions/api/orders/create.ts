@@ -9,7 +9,7 @@ export async function onRequestPost({ request, env }: PagesContext): Promise<Res
   if (!parsed.success) {
     return json({ error: parsed.error.issues[0]?.message ?? 'Invalid order payload.' }, 400);
   }
-  const { outletId, customerPhone, collegeId, customerName, blockNumber, roomNo, items, grandTotal } = parsed.data;
+  const { outletId, customerPhone, collegeId, customerName, blockNumber, roomNo, instructions, items, grandTotal } = parsed.data;
   const phone = String(customerPhone).replace(/\s+/g, '');
   // Demo directory: numbers ending with 829 / 090 are treated as repeat_verified.
   const isRepeatDemo = /829$|090$|1102$|4211$/.test(phone);
@@ -34,6 +34,7 @@ export async function onRequestPost({ request, env }: PagesContext): Promise<Res
         packaging: 0,
         grandTotal: Number(grandTotal) || 0,
         payMode: 'UPI_PREPAID',
+        note: instructions,
       });
     } catch {
       // hot storage is best-effort; the order response must not fail

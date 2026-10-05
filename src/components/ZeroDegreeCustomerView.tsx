@@ -82,6 +82,7 @@ export const ZeroDegreeCustomerView: React.FC<{
   const [note, setNote] = useState('');
   const [payMode, setPayMode] = useState<'cash' | 'upi' | 'card'>('upi');
   const [placed, setPlaced] = useState<PlacedReceipt | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [welcomeBack, setWelcomeBack] = useState<string | null>(null);
@@ -243,11 +244,44 @@ export const ZeroDegreeCustomerView: React.FC<{
     }
   };
 
-  const place = () => {
+  const place = async () => {
     if (!canOrder) return;
-    const oid = `ZD-${Date.now().toString().slice(-6)}`;
+    setOrderError(null);
     const cid = collegeId.trim().toUpperCase().replace(/\s+/g, '');
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // The order only counts once the server accepts it — the kitchen feed reads D1.
+    let oid: string;
+    try {
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outletId: 'zd-main',
+          customerPhone: `+91 ${validPhone}`,
+          collegeId: cid || undefined,
+          customerName: name.trim(),
+          blockNumber: block,
+          roomNo: room.trim(),
+          instructions: note.trim(),
+          items: lines.map((l) => ({
+            item_id: l.itemId,
+            item_name: l.name,
+            variation_id: l.variant,
+            variation_name: l.variant,
+            quantity: l.qty,
+            unit_price: l.price,
+          })),
+          grandTotal,
+        }),
+      });
+      const data = (await res.json()) as { orderId?: string; error?: string };
+      if (!res.ok || !data.orderId) throw new Error(data.error ?? 'Order was not sent.');
+      oid = data.orderId;
+    } catch {
+      setOrderError('Order could not be sent — check your internet and tap Place order again. Nothing was charged.');
+      return;
+    }
 
     // Save profile for next time if College ID given
     if (cid.length >= 3) {
@@ -570,10 +604,18 @@ export const ZeroDegreeCustomerView: React.FC<{
             {ctaLabel}
           </button>
 
+          {orderError && (
+            <div role="alert" className="mt-3 p-3 rounded-xl border border-rose-800 bg-rose-950/60 text-rose-200 text-[13px] font-semibold">
+              {orderError}
+            </div>
+          )}
           {placed && (
             <div role="status" aria-live="polite" className="mt-3 p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 space-y-2">
+              <div className="text-base font-black text-emerald-200">
+                Thank you for placing your order, {placed.name}!
+              </div>
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-mono font-bold">✅ ORDER SENT — {placed.orderId}</span>
+                <span className="text-xs font-mono font-bold">Order {placed.orderId} • Kitchen has it ✅</span>
                 <span className="text-[11px] font-mono">{placed.time}</span>
               </div>
               <ul className="text-xs font-mono space-y-0.5">

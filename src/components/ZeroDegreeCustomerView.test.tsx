@@ -61,6 +61,16 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
   });
 
   it('saves College ID profile on placing an order', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: async () =>
+            String(url).includes('/api/orders/create') ? { orderId: 'ZD-123456' } : { found: false },
+        }),
+      ),
+    );
     const user = userEvent.setup({ delay: null });
     const onPlaced = vi.fn();
     localStorage.clear();
@@ -81,7 +91,7 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
     expect(onPlaced).toHaveBeenCalled();
     expect(localStorage.getItem('parallel-eats-profiles:v1')).toContain('NEW999');
     // receipt shown with the bill, ready for the next order
-    expect(await screen.findByText(/ORDER SENT/)).toBeInTheDocument();
+    expect(await screen.findByText(/Thank you for placing your order/)).toBeInTheDocument();
     expect(screen.getByText(/Total \(incl\. GST \+ packing\)/)).toBeInTheDocument();
   });
 

@@ -38,3 +38,15 @@ test('customer lookup misses cleanly for unknown numbers', async ({ request }) =
   expect(res.status()).toBe(200);
   expect(await res.json()).toEqual({ found: false });
 });
+
+test('staff live feed shares orders across devices', async ({ request }) => {
+  const login = await request.post('/api/staff/login', { data: { outletId: 'zd-main', pin: 'zero-g1-2026' } });
+  expect(login.status()).toBe(200);
+  const { token } = await login.json();
+  const feed = await request.get('/api/orders/live', { headers: { Authorization: `Bearer ${token}` } });
+  expect(feed.status()).toBe(200);
+  expect(Array.isArray((await feed.json()).orders)).toBe(true);
+
+  const anon = await request.get('/api/orders/live');
+  expect(anon.status()).toBe(401);
+});
