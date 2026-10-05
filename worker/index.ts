@@ -7,6 +7,10 @@ import { onRequestPost as voiceTurn } from '../functions/api/voice-agent/turn';
 import { onRequestPost as voiceTts } from '../functions/api/voice-agent/tts';
 import { onRequestPost as staffLogin } from '../functions/api/staff/login';
 import { onRequestPost as staffVerify } from '../functions/api/staff/verify';
+import { onRequestPost as staffRequestReset } from '../functions/api/staff/request-reset';
+import { onRequestPost as staffCompleteReset } from '../functions/api/staff/complete-reset';
+import { onRequestPost as adminExport } from '../functions/api/admin/export';
+import { onRequestPost as adminPrune } from '../functions/api/admin/prune';
 import type { PagesContext } from '../functions/_lib/api';
 
 type Handler = (ctx: PagesContext) => Promise<Response> | Response;
@@ -21,6 +25,10 @@ const POST_ROUTES: Record<string, Handler> = {
   '/api/voice-agent/tts': voiceTts,
   '/api/staff/login': staffLogin,
   '/api/staff/verify': staffVerify,
+  '/api/staff/request-reset': staffRequestReset,
+  '/api/staff/complete-reset': staffCompleteReset,
+  '/api/admin/export': adminExport,
+  '/api/admin/prune': adminPrune,
 };
 
 interface WorkerEnv {

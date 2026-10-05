@@ -64,6 +64,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onLogin, onBack }) => {
             />
           </div>
           {error && <div role="alert" className="p-2.5 rounded-xl text-[13px] bg-rose-950/60 border border-rose-800 text-rose-200">{error}</div>}
+          <p className="text-[11px] text-slate-500">Forgot PIN? Ask a signed-in colleague to open Staff → PIN & Access and read you a reset code.</p>
           <button
             type="submit"
             disabled={pin.trim().length === 0 || busy}

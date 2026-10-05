@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { D1 } from './store';
 
 // Mirrors server.ts validation. Keep both in sync; server.ts serves local dev,
 // these Functions serve Cloudflare Pages production.
@@ -29,6 +30,7 @@ export interface PagesEnv {
   PETPOOJA_SAVE_ORDER_URL?: string;
   STAFF_PINS_JSON?: string;
   STAFF_TOKEN_SECRET?: string;
+  DB?: D1;
 }
 
 export interface PagesContext {
@@ -77,14 +79,9 @@ export function clientKey(req: Request): string {
 }
 
 export async function hmacHex(secret: string, data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  const enc = (s: string): Uint8Array<ArrayBuffer> => new Uint8Array(new TextEncoder().encode(s));
+  const key = await crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc(data));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -93,4 +90,27 @@ export function safeEqual(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+export async function verifyToken(secret: string | undefined, token: unknown): Promise<string | null> {
+  if (!secret || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [outletId, expStr, sig] = parts;
+  const expiresAt = Number(expStr);
+  if (!outletId || !expiresAt || Date.now() > expiresAt) return null;
+  const expected = await hmacHex(secret, `${outletId}.${expiresAt}`);
+  return safeEqual(expected, sig) ? outletId : null;
+}
+
+// Staff-gated endpoints: Bearer HMAC token, always scoped to its own outlet.
+export async function requireStaff(
+  request: Request,
+  env: PagesEnv,
+): Promise<{ outletId: string } | Response> {
+  const auth = request.headers.get('Authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const outletId = await verifyToken(env.STAFF_TOKEN_SECRET, token);
+  if (!outletId) return json({ error: 'Staff sign-in required.' }, 401);
+  return { outletId };
 }

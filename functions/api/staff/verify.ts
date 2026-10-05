@@ -1,5 +1,4 @@
-import { PagesContext, json, readJson } from '../../_lib/api';
-import { verifyToken } from './login';
+import { PagesContext, json, readJson, verifyToken } from '../../_lib/api';
 
 export async function onRequestPost({ request, env }: PagesContext): Promise<Response> {
   const { token } = await readJson(request);

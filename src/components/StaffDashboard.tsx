@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { ClipboardList, QrCode, MessageCircle, Store, Wallet, LogOut } from 'lucide-react';
+import { ClipboardList, QrCode, MessageCircle, Store, Wallet, KeyRound, LogOut } from 'lucide-react';
 import { QROrder, RestaurantOutlet } from '../types';
+import { StaffAccess } from './StaffAccess';
 
 // Code-split like App: staff sections load on demand, never in the customer bundle.
 const QROrderView = lazy(() => import('./QROrderView').then((m) => ({ default: m.QROrderView })));
@@ -9,7 +10,7 @@ const WhatsAppFlowView = lazy(() => import('./WhatsAppFlowView').then((m) => ({ 
 const PetpoojaBridgeView = lazy(() => import('./PetpoojaBridgeView').then((m) => ({ default: m.PetpoojaBridgeView })));
 const BlueprintAndEmailView = lazy(() => import('./BlueprintAndEmailView').then((m) => ({ default: m.BlueprintAndEmailView })));
 
-type StaffSection = 'queue' | 'qr' | 'whatsapp' | 'pos' | 'costing';
+type StaffSection = 'queue' | 'qr' | 'whatsapp' | 'pos' | 'costing' | 'access';
 
 const SECTIONS: { key: StaffSection; label: string; short: string; icon: React.ReactNode }[] = [
   { key: 'queue', label: 'Kitchen Queue', short: 'Queue', icon: <ClipboardList className="w-5 h-5" /> },
@@ -17,6 +18,7 @@ const SECTIONS: { key: StaffSection; label: string; short: string; icon: React.R
   { key: 'whatsapp', label: 'WhatsApp', short: 'Chat', icon: <MessageCircle className="w-5 h-5" /> },
   { key: 'pos', label: 'POS & Stock', short: 'POS', icon: <Store className="w-5 h-5" /> },
   { key: 'costing', label: 'Setup & Costing', short: 'Setup', icon: <Wallet className="w-5 h-5" /> },
+  { key: 'access', label: 'PIN & Access', short: 'PIN', icon: <KeyRound className="w-5 h-5" /> },
 ];
 
 interface StaffDashboardProps {
@@ -155,6 +157,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             />
           )}
           {section === 'costing' && <BlueprintAndEmailView />}
+          {section === 'access' && <StaffAccess />}
         </Suspense>
       </div>
 

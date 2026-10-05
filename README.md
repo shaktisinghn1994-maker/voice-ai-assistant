@@ -77,6 +77,14 @@ Orders persist per device (`pe-staff-orders:v1`, capped at 100) so a refresh mid
 - `src/hooks/useTheme.ts` — dark/light mode, persisted
 - `.opencode/skills/` — agent skills: `vercel-react-best-practices`, `web-design-guidelines`, `frontend-design`, `webapp-testing`
 
+## Data (zero-cost, 10-lakh ready)
+
+Hot data lives in Cloudflare D1 (`parallel-eats-db`, see `db/schema.sql`): slim customers/orders rows, staff accounts with salted PBKDF2 hashes (never plaintext), single-use reset codes, audit log. Free limits: 5M rows read/day, 100K writes/day, 500MB per DB — queries are indexed lookups only.
+
+Cold history moves to R2/readable exports via `POST /api/admin/export` (staff token, outlet-scoped, CSV/JSONL download, 7+ day filter, 5K rows max) and `POST /api/admin/prune` (same filters + exact confirm phrase, batched deletes). Export first, prune second, verify the file — that loop keeps D1 lean forever.
+
+Staff PIN reset is owner-assisted and free: signed-in staff opens Staff → PIN & Access → Generate reset code, reads the 6-digit single-use code to the colleague in person, who sets a new PIN within 15 minutes (`/api/staff/request-reset`, `/api/staff/complete-reset`). Nothing is sent by SMS/WhatsApp.
+
 ## Pilot rollout
 
 1. Paper-form test (30 orders) → 2. one restaurant, 14 days → 3. other two outlets → 4. one small vendor → 5. sell packs. Payment gateway, Petpooja live push, and outside-delivery radius arrive on paid demand only.

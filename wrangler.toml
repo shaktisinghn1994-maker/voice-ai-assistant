@@ -11,3 +11,8 @@ compatibility_date = "2026-09-01"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "parallel-eats-db"
+database_id = "c11d0196-5a54-437a-9f17-f33a32c764f5"
