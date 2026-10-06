@@ -82,7 +82,9 @@ export const ZeroDegreeCustomerView: React.FC<{
   const [note, setNote] = useState('');
   const [payMode, setPayMode] = useState<'cash' | 'upi' | 'card'>('upi');
   const [placed, setPlaced] = useState<PlacedReceipt | null>(null);
+  const [showThanks, setShowThanks] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const receiptRef = useRef<HTMLDivElement | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [welcomeBack, setWelcomeBack] = useState<string | null>(null);
@@ -228,6 +230,16 @@ export const ZeroDegreeCustomerView: React.FC<{
     return () => window.removeEventListener('keydown', onKey);
   }, [showQRModal]);
 
+  // Close thank-you dialog with Escape
+  useEffect(() => {
+    if (!showThanks) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowThanks(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showThanks]);
+
   const closeQRModal = () => {
     setShowQRModal(false);
     scanBtnRef.current?.focus?.();
@@ -342,6 +354,7 @@ export const ZeroDegreeCustomerView: React.FC<{
 
     setPlaced(receipt);
     setCart({});
+    setShowThanks(true);
     onOrderPlaced(`${oid} placed for ${name.trim()} — Rs ${grandTotal}. Staff will confirm on WhatsApp.`, orderObj);
   };
 
@@ -610,7 +623,7 @@ export const ZeroDegreeCustomerView: React.FC<{
             </div>
           )}
           {placed && (
-            <div role="status" aria-live="polite" className="mt-3 p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 space-y-2">
+            <div ref={receiptRef} role="status" aria-live="polite" className="mt-3 p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 space-y-2 scroll-mt-24">
               <div className="text-base font-black text-emerald-200">
                 Thank you for placing your order, {placed.name}!
               </div>
@@ -661,6 +674,40 @@ export const ZeroDegreeCustomerView: React.FC<{
           </button>
         </div>
       </div>
+
+      {/* Thank-you dialog - pops on every successful order */}
+      {showThanks && placed && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ overscrollBehavior: 'contain' }}>
+          <div role="dialog" aria-modal="true" aria-label="Order confirmed" className="zd-surface border border-emerald-500/40 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <div className="text-5xl mb-2" aria-hidden="true">🎉</div>
+            <h2 className="text-xl font-black text-white">Thank you for ordering, {placed.name}!</h2>
+            <p className="mt-1 text-sm font-mono text-emerald-300 font-bold">Order {placed.orderId} • Rs {placed.grandTotal}</p>
+            <p className="mt-2 text-[13px] text-slate-400">
+              The kitchen has your order. {payHint}, and show this screen or your College ID at pickup.
+            </p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => {
+                  setShowThanks(false);
+                  receiptRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+                }}
+                autoFocus
+                className="w-full min-h-[52px] rounded-xl font-bold text-[15px] cursor-pointer active:scale-[0.99] transition-all"
+                style={{ background: '#f59e0b', color: '#111' }}
+              >
+                See my receipt
+              </button>
+              <button
+                onClick={() => setShowThanks(false)}
+                aria-label="Close thank you dialog"
+                className="w-full min-h-[44px] text-sm font-semibold text-slate-300 hover:text-slate-100 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Modal */}
       {showQRModal && (

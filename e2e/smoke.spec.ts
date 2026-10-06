@@ -39,8 +39,18 @@ test('customer lookup misses cleanly for unknown numbers', async ({ request }) =
   expect(await res.json()).toEqual({ found: false });
 });
 
-test('staff live feed shares orders across devices', async ({ request }) => {
-  const login = await request.post('/api/staff/login', { data: { outletId: 'zd-main', pin: '1234' } });
+test('ordering pops a thank-you dialog with the order', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Add one/ }).first().click();
+  await page.getByPlaceholder(/e\.g\. Aarav/).fill('E2E Taster');
+  await page.getByPlaceholder(/98765/).fill('9876500009');
+  await page.locator('#zd-block').selectOption('G1');
+  await page.getByRole('button', { name: /Place order/ }).first().click();
+  await expect(page.getByRole('dialog', { name: /Order confirmed/ })).toBeVisible();
+  await expect(page.getByText(/Thank you for ordering, E2E Taster!/)).toBeVisible();
+});
+
+test('staff live feed shares orders across devices', async ({ request }) => {  const login = await request.post('/api/staff/login', { data: { outletId: 'zd-main', pin: '1234' } });
   expect(login.status()).toBe(200);
   const { token } = await login.json();
   const feed = await request.get('/api/orders/live', { headers: { Authorization: `Bearer ${token}` } });

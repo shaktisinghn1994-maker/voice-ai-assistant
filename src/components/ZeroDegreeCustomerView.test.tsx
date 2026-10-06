@@ -93,9 +93,15 @@ describe('ZeroDegreeCustomerView - College ID + mobile friendly', () => {
     // receipt shown with the bill, ready for the next order
     expect(await screen.findByText(/Thank you for placing your order/)).toBeInTheDocument();
     expect(screen.getByText(/Total \(incl\. GST \+ packing\)/)).toBeInTheDocument();
+    // thank-you dialog pops with the customer name
+    expect(screen.getByRole('dialog', { name: /Order confirmed/ })).toBeInTheDocument();
+    expect(screen.getByText(/Thank you for ordering, Test User!/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /See my receipt/ }));
+    expect(screen.queryByRole('dialog', { name: /Order confirmed/ })).not.toBeInTheDocument();
   });
 
-  it('requires a valid 10-digit mobile number', async () => {    const user = userEvent.setup({ delay: null });
+  it('requires a valid 10-digit mobile number', async () => {
+    const user = userEvent.setup({ delay: null });
     render(<ZeroDegreeCustomerView isOpen onOrderPlaced={vi.fn()} />);
     const addBtns = screen.getAllByRole('button', { name: /Add one/ });
     await user.click(addBtns[0]);
