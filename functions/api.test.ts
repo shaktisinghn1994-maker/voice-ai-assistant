@@ -8,6 +8,7 @@ import { onRequestPost as staffLogin } from './api/staff/login';
 import { onRequestPost as staffVerify } from './api/staff/verify';
 import { onRequestPost as customerLookup } from './api/customer/lookup';
 import { onRequestGet as ordersLive } from './api/orders/live';
+import { onRequestGet as orderTrack } from './api/orders/track';
 import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from './api/outlet/status';
 import { hmacHex } from './_lib/api';
 
@@ -170,5 +171,35 @@ describe('Pages Functions API (Cloudflare production)', () => {
 
     const status = await outletStatusGet({ request: await authed('/api/outlet/status?outletId=zd-main'), env });
     expect(status.status).toBe(200);
+  });
+
+  it('GET /api/orders/track shows kitchen status without private data', async () => {
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          first: async () => {
+            if (String(sql).includes('FROM orders WHERE order_id')) {
+              return args[0] === 'RC-7'
+                ? { status: 'preparing', pay_status: 'paid' }
+                : null;
+            }
+            return null;
+          },
+          all: async () => ({ results: [] }),
+          run: async () => ({}),
+        }),
+      }),
+    };
+    const hit = await orderTrack({
+      request: new Request('http://test/api/orders/track?orderId=RC-7'),
+      env: { DB: db } as never,
+    });
+    expect(await hit.json()).toEqual({ orderId: 'RC-7', status: 'preparing', paymentStatus: 'paid' });
+
+    const miss = await orderTrack({
+      request: new Request('http://test/api/orders/track?orderId=NOPE'),
+      env: { DB: db } as never,
+    });
+    expect(miss.status).toBe(404);
   });
 });

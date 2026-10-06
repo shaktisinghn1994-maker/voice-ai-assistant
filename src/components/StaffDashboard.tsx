@@ -29,6 +29,7 @@ interface StaffDashboardProps {
   onSelectOutlet: (id: string) => void;
   onOrderCreated: (order: QROrder) => void;
   onUpdateOrder: (id: string, patch: Partial<QROrder>) => void;
+  onDeleteOrder: (id: string) => void;
   onToggleItemStock: (outletId: string, itemId: string) => void;
   onExit: () => void;
   onLogout: () => void;
@@ -52,6 +53,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onSelectOutlet,
   onOrderCreated,
   onUpdateOrder,
+  onDeleteOrder,
   onToggleItemStock,
   onExit,
   onLogout,
@@ -143,7 +145,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           </div>
         </div>
         <Suspense fallback={<Loading />}>
-          {section === 'queue' && <StaffQueueView orders={orders} onUpdate={onUpdateOrder} />}
+          {section === 'queue' && <StaffQueueView orders={orders} onUpdate={onUpdateOrder} onDelete={onDeleteOrder} />}
           {section === 'qr' && (
             <QROrderView selectedOutletId={selectedOutletId} onSelectOutlet={onSelectOutlet} onOrderCreated={onOrderCreated} />
           )}

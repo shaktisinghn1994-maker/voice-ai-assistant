@@ -15,6 +15,7 @@ const baseProps = {
   onToggleItemStock: vi.fn(),
   onExit: vi.fn(),
   onLogout: vi.fn(),
+  onDeleteOrder: vi.fn(),
   isOpen: true,
   onToggleOpen: vi.fn(),
 };

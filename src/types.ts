@@ -132,6 +132,7 @@ export type QROrderStatus =
   | 'pending_staff_accept'
   | 'accepted'
   | 'pushed_to_petpooja'
+  | 'preparing'
   | 'dispatched'
   | 'delivered'
   | 'cancelled';

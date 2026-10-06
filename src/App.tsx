@@ -227,6 +227,12 @@ export default function App() {
     setOrders((prev) => prev.map((o) => (o.orderId === id ? { ...o, ...patch } : o)));
   };
 
+  const handleDeleteOrder = (id: string) => {
+    locallyTouched.current.delete(id);
+    setOrders((prev) => prev.filter((o) => o.orderId !== id));
+    showToast(`Order ${id} deleted from this queue.`);
+  };
+
   const handleToggleItemStock = (outletId: string, itemId: string) => {
     setOrders((prev) => prev);
     setOutlets((prev) =>
@@ -320,6 +326,7 @@ export default function App() {
             onSelectOutlet={setSelectedOutletId}
             onOrderCreated={handleOrderCreated}
             onUpdateOrder={handleUpdateOrder}
+            onDeleteOrder={handleDeleteOrder}
             onToggleItemStock={handleToggleItemStock}
             onExit={() => setView('customer')}
             onLogout={handleLogout}

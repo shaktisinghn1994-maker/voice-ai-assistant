@@ -13,6 +13,7 @@ import { onRequestPost as adminExport } from '../functions/api/admin/export';
 import { onRequestPost as adminPrune } from '../functions/api/admin/prune';
 import { onRequestPost as customerLookup } from '../functions/api/customer/lookup';
 import { onRequestGet as ordersLive } from '../functions/api/orders/live';
+import { onRequestGet as orderTrack } from '../functions/api/orders/track';
 import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from '../functions/api/outlet/status';
 import type { PagesContext } from '../functions/_lib/api';
 
@@ -38,6 +39,7 @@ const POST_ROUTES: Record<string, Handler> = {
 
 const GET_ROUTES: Record<string, Handler> = {
   '/api/orders/live': ordersLive,
+  '/api/orders/track': orderTrack,
   '/api/outlet/status': outletStatusGet,
 };
 

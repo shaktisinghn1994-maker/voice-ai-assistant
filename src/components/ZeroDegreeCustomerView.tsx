@@ -82,6 +82,7 @@ export const ZeroDegreeCustomerView: React.FC<{
   const [note, setNote] = useState('');
   const [payMode, setPayMode] = useState<'cash' | 'upi' | 'card'>('upi');
   const [placed, setPlaced] = useState<PlacedReceipt | null>(null);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [showThanks, setShowThanks] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const receiptRef = useRef<HTMLDivElement | null>(null);
@@ -229,6 +230,52 @@ export const ZeroDegreeCustomerView: React.FC<{
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showQRModal]);
+
+  // Live kitchen status on the receipt, so the customer sees Punched/Preparing/Dispatched.
+  useEffect(() => {
+    if (!placed) {
+      setLiveStatus(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/orders/track?orderId=${encodeURIComponent(placed.orderId)}`);
+        const data = (await res.json()) as { status?: string };
+        if (!cancelled && res.ok && data.status) setLiveStatus(data.status);
+      } catch {
+        // offline - receipt keeps its last known state
+      }
+    };
+    void poll();
+    const t = setInterval(poll, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [placed]);
+
+  const friendlyStatus = (status: string | null): string => {
+    switch (status) {
+      case 'pending_pay':
+      case 'pending_staff_accept':
+        return 'Sent to kitchen';
+      case 'accepted':
+        return 'Accepted';
+      case 'pushed_to_petpooja':
+        return 'Punched — being prepared';
+      case 'preparing':
+        return 'Preparing';
+      case 'dispatched':
+        return 'Dispatched — on its way';
+      case 'delivered':
+        return 'Delivered — enjoy!';
+      case 'cancelled':
+        return 'Cancelled — ask the counter';
+      default:
+        return 'Sent to kitchen';
+    }
+  };
 
   // Close thank-you dialog with Escape
   useEffect(() => {
@@ -630,6 +677,9 @@ export const ZeroDegreeCustomerView: React.FC<{
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-xs font-mono font-bold">Order {placed.orderId} • Kitchen has it ✅</span>
                 <span className="text-[11px] font-mono">{placed.time}</span>
+              </div>
+              <div className="inline-block text-xs font-bold px-3 py-1.5 rounded-full bg-amber-400 text-slate-950" role="status">
+                {friendlyStatus(liveStatus)}
               </div>
               <ul className="text-xs font-mono space-y-0.5">
                 {placed.lines.map((l) => (
