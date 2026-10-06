@@ -9,6 +9,7 @@ import { onRequestPost as staffVerify } from './api/staff/verify';
 import { onRequestPost as customerLookup } from './api/customer/lookup';
 import { onRequestGet as ordersLive } from './api/orders/live';
 import { onRequestGet as orderTrack } from './api/orders/track';
+import { onRequestPost as orderUpdate } from './api/orders/update';
 import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from './api/outlet/status';
 import { hmacHex } from './_lib/api';
 
@@ -173,8 +174,7 @@ describe('Pages Functions API (Cloudflare production)', () => {
     expect(status.status).toBe(200);
   });
 
-  it('GET /api/orders/track shows kitchen status without private data', async () => {
-    const db = {
+  it('GET /api/orders/track shows kitchen status without private data', async () => {    const db = {
       prepare: (sql: string) => ({
         bind: (...args: unknown[]) => ({
           first: async () => {
@@ -201,5 +201,48 @@ describe('Pages Functions API (Cloudflare production)', () => {
       env: { DB: db } as never,
     });
     expect(miss.status).toBe(404);
+  });
+
+  it('POST /api/orders/update syncs staff status changes, outlet-scoped', async () => {
+    const seen: { sql: string; args: unknown[] }[] = [];
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          first: async () => null,
+          all: async () => ({ results: [] }),
+          run: async () => {
+            seen.push({ sql, args });
+            return {};
+          },
+        }),
+      }),
+    };
+    const secret = 'update-secret';
+    const exp = Date.now() + 3600_000;
+    const token = `${'zd-main'}.${exp}.${await hmacHex(secret, `zd-main.${exp}`)}`;
+    const authed = (body: unknown) =>
+      new Request('http://test/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+    const env = { STAFF_TOKEN_SECRET: secret, DB: db } as never;
+
+    const ok = await orderUpdate({ request: authed({ orderId: 'RC-3', status: 'preparing' }), env });
+    expect((await ok.json()).ok).toBe(true);
+    expect(seen.some((s) => s.sql.includes('UPDATE orders SET status = ?'))).toBe(true);
+
+    const anon = await orderUpdate({
+      request: new Request('http://test/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: 'RC-3', status: 'preparing' }),
+      }),
+      env,
+    });
+    expect(anon.status).toBe(401);
+
+    const bad = await orderUpdate({ request: authed({ orderId: 'RC-3', status: 'flying' }), env });
+    expect(bad.status).toBe(400);
   });
 });

@@ -225,6 +225,20 @@ export default function App() {
   const handleUpdateOrder = (id: string, patch: Partial<QROrder>) => {
     locallyTouched.current.add(id);
     setOrders((prev) => prev.map((o) => (o.orderId === id ? { ...o, ...patch } : o)));
+    // Mirror to the server so the customer's receipt follows Punched/Preparing/Dispatched.
+    const token = getSession()?.token;
+    if (!token) return;
+    const body: Record<string, string> = { orderId: id };
+    if (patch.status) body.status = patch.status;
+    if (patch.paymentStatus) body.paymentStatus = patch.paymentStatus;
+    if (!body.status && !body.paymentStatus) return;
+    fetch('/api/orders/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    }).catch(() => {
+      // local queue is truth on this device; the next poll reconciles
+    });
   };
 
   const handleDeleteOrder = (id: string) => {

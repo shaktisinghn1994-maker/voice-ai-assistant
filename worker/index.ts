@@ -14,6 +14,7 @@ import { onRequestPost as adminPrune } from '../functions/api/admin/prune';
 import { onRequestPost as customerLookup } from '../functions/api/customer/lookup';
 import { onRequestGet as ordersLive } from '../functions/api/orders/live';
 import { onRequestGet as orderTrack } from '../functions/api/orders/track';
+import { onRequestPost as orderUpdate } from '../functions/api/orders/update';
 import { onRequestGet as outletStatusGet, onRequestPost as outletStatusPost } from '../functions/api/outlet/status';
 import type { PagesContext } from '../functions/_lib/api';
 
@@ -34,6 +35,7 @@ const POST_ROUTES: Record<string, Handler> = {
   '/api/admin/export': adminExport,
   '/api/admin/prune': adminPrune,
   '/api/customer/lookup': customerLookup,
+  '/api/orders/update': orderUpdate,
   '/api/outlet/status': outletStatusPost,
 };
 
