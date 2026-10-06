@@ -54,7 +54,7 @@ const CATEGORY_ICONS: { match: string; icon: string }[] = [
   { match: 'ICE TEA', icon: '🧋' },
 ];
 
-const ORDER_PAGE_URL = 'https://parallel-eats.pages.dev/';
+const ORDER_PAGE_URL = 'https://voice-ai-assistant.shaktisinghn1994.workers.dev/';
 
 function categoryIcon(title: string): string {
   const upper = title.toUpperCase();
