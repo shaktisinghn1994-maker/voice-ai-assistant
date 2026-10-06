@@ -4,7 +4,7 @@
 // Change the PIN afterwards with the reset flow or by re-running with a new PIN.
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
-const pin = process.argv[2] || 'zero-g1-2026';
+const pin = process.argv[2] || '1234';
 const salt = randomBytes(16).toString('hex');
 const hash = pbkdf2Sync(pin, Buffer.from(salt, 'hex'), 60000, 32, 'sha256').toString('hex');
 console.log(

@@ -40,7 +40,7 @@ test('customer lookup misses cleanly for unknown numbers', async ({ request }) =
 });
 
 test('staff live feed shares orders across devices', async ({ request }) => {
-  const login = await request.post('/api/staff/login', { data: { outletId: 'zd-main', pin: 'zero-g1-2026' } });
+  const login = await request.post('/api/staff/login', { data: { outletId: 'zd-main', pin: '1234' } });
   expect(login.status()).toBe(200);
   const { token } = await login.json();
   const feed = await request.get('/api/orders/live', { headers: { Authorization: `Bearer ${token}` } });

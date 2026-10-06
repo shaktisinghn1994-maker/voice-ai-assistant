@@ -59,7 +59,7 @@ function readStaffPins(): Record<string, { cafeName: string; pin: string }> {
   }
   if (process.env.NODE_ENV === 'production') return {};
   console.warn('[staff-auth] STAFF_PINS_JSON unset: using dev fallback PIN. Set STAFF_PINS_JSON for real staff.');
-  return { 'zd-main': { cafeName: 'ZERO DEGREE CAFE', pin: 'zero-g1-2026' } };
+  return { 'zd-main': { cafeName: 'ZERO DEGREE CAFE', pin: '1234' } };
 }
 
 function staffSecret(): string {

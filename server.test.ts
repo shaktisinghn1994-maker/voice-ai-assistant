@@ -34,7 +34,7 @@ describe('API - orders + whatsapp + zip removal', () => {
 
   it('POST /api/staff/login accepts the outlet PIN and returns a token', async () => {
     const app = createApp();
-    const res = await request(app).post('/api/staff/login').send({ outletId: 'zd-main', pin: 'zero-g1-2026' });
+    const res = await request(app).post('/api/staff/login').send({ outletId: 'zd-main', pin: '1234' });
     expect(res.status).toBe(200);
     expect(res.body.token).toMatch(/^zd-main\.\d+\.[0-9a-f]+$/);
     const check = await request(app).post('/api/staff/verify').send({ token: res.body.token });

@@ -44,7 +44,7 @@ CI (`.github/workflows/test.yml`) runs the same three steps on every push/PR.
 
 Staff sections sit behind a cafe name + staff PIN. PINs live **server-side only** (`STAFF_PINS_JSON` env) — the client bundle contains no credentials. Sessions are HMAC-signed tokens (`STAFF_TOKEN_SECRET`) in `sessionStorage` with a 12h expiry, and `/api/staff/login` is rate-limited to 10 attempts/min/IP.
 
-Local dev fallback PIN: `zero-g1-2026` (non-production only, with a console warning).
+Local dev fallback PIN: `1234` (non-production only, with a console warning).
 
 Production setup (Cloudflare Pages):
 
